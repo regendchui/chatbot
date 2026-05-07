@@ -616,10 +616,10 @@ While reasonable efforts have been made to implement basic security measures and
 
 Users are solely responsible for:
 
-Verifying the security and safety of their deployment environment
-Ensuring compliance with local laws, regulations, institutional policies, and ethical requirements
-Protecting participant privacy, confidential data, and API credentials
-Conducting independent testing, validation, and security review before production use
+- Verifying the security and safety of their deployment environment
+- Ensuring compliance with local laws, regulations, institutional policies, and ethical requirements
+- Protecting participant privacy, confidential data, and API credentials
+- Conducting independent testing, validation, and security review before production use
 
 The author shall not be held liable for any direct, indirect, incidental, consequential, legal, financial, operational, or data-related damages arising from the use, misuse, modification, deployment, or distribution of this project.
 
