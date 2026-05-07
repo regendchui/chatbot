@@ -1,8 +1,10 @@
 # WhatsApp chatbot (Whatsmeow + PostgreSQL + OpenRouter)
 
-Go application that pairs with WhatsApp via [whatsmeow](https://github.com/tulir/whatsmeow), stores conversation and participant data in PostgreSQL, serves baseline and follow-up surveys over HTTPS, and uses OpenRouter (Gemini model) for replies after a participant completes the baseline survey. An optional admin panel runs on a separate HTTPS port for operations, configuration, and reporting.
+Go application that pairs with WhatsApp via [whatsmeow](https://github.com/tulir/whatsmeow), stores conversation and participant data in PostgreSQL, serves baseline and follow-up surveys over HTTPS, and uses OpenRouter for replies after a participant completes the baseline survey. An optional admin panel runs on a separate HTTPS port for operations, configuration, and reporting.
 
 The project is intended to run with **Docker Compose** (app + database). Survey definitions and most tunable settings are loaded from the filesystem on **first** startup, then **persisted and edited** through the `project_setting` table and the admin **Configuration** page.
+
+The author welcomes any research collaboration.
 
 Link for JSON Configurator: https://regendchui.github.io/chatbot-JSON-configurator/
 
@@ -605,3 +607,22 @@ Replace host and slugs with yours (`survey-config.json` defines `link_slug` per 
 | Admin home | `http://localhost/admin/home/` | `https://yourdomain.com/admin/home/` |
 
 Further admin routes live under `/admin/...` (tables, configuration, enrollment, etc.); use the in-app navigation after login.
+
+## Disclaimer
+
+This project is primarily developed for research and educational purposes. To accelerate development and prototyping, generative AI tools were used to assist with coding, debugging, documentation, and software design. Users who have concerns regarding AI-assisted code generation, human authorship, or originality should carefully evaluate whether this project is appropriate for their intended use.
+
+While reasonable efforts have been made to implement basic security measures and operational safeguards, this software is provided “as is” without any warranty of any kind, express or implied. The author makes no guarantees regarding the security, reliability, stability, accuracy, legal compliance, or fitness of this project for any specific purpose.
+
+Users are solely responsible for:
+
+Verifying the security and safety of their deployment environment
+Ensuring compliance with local laws, regulations, institutional policies, and ethical requirements
+Protecting participant privacy, confidential data, and API credentials
+Conducting independent testing, validation, and security review before production use
+
+The author shall not be held liable for any direct, indirect, incidental, consequential, legal, financial, operational, or data-related damages arising from the use, misuse, modification, deployment, or distribution of this project.
+
+This project may integrate with third-party services and APIs, including WhatsApp, OpenRouter, PostgreSQL, Docker, and other external platforms. The availability, behavior, privacy practices, and terms of these third-party services are outside the author’s control.
+
+By using this project, you acknowledge and accept all associated risks and responsibilities.
