@@ -4,7 +4,7 @@ Go application that pairs with WhatsApp via [whatsmeow](https://github.com/tulir
 
 The project is intended to run with **Docker Compose** (app + database). Survey definitions and most tunable settings are loaded from the filesystem on **first** startup, then **persisted and edited** through the `project_setting` table and the admin **Configuration** page.
 
-The author welcomes any research collaboration.
+The author welcomes any research collaboration. For research collaboration, please contact: regend@connect.hku.hk
 
 Link for JSON Configurator: https://regendchui.github.io/chatbot-JSON-configurator/
 
