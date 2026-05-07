@@ -1,0 +1,430 @@
+{
+  "project": {
+    "name": "戒得有型",
+    "description": "戒得有型",
+    "version": 1,
+    "default_language": "en",
+    "intervention_period": 30,
+    "intervention_end_message": "As the service period is over, it is time to say goodbye. Thank you for using our service.",
+    "verification_message": "Please wait for admin verficaition before chatting with chatbot.",
+    "consent_form_text": "在開始使用此人工智能聊天機械人之前，請仔細閱讀以下資訊。當你繼續使用本系統，即表示你已理解並同意參與本次互動。本聊天機械人旨在提供自動化的資訊及支援用途，並不能取代專業意見、診斷或治療。由人工智能生成的資訊未必完全準確、完整或為最新內容，你應就重要資訊自行核實後才作依賴。你的參與屬自願性質，你可隨時停止對話而不會承受任何後果。你所提供的資料可能會被記錄，並以匿名及彙總形式用於改進系統的質素及表現。儘管我們已採取合理措施保障你的資料，但無法保證絕對保密。如你不同意上述條款，請勿繼續使用本系統。",
+    "cron_task_time": 700,
+    "chatbot_schedule_questions": {
+      "once_per_one_week": [
+        "Friday"
+      ],
+      "twice_per_one_week": [
+        "Monday",
+        "Friday"
+      ],
+      "once_per_two_weeks": [
+        "Friday"
+      ]
+    },
+    "translations": {
+      "message_interval_label": "信息間隔",
+      "participant_name_label": "參加者姓名",
+      "respondent_phone_label": "你的 WhatsApp 電話號碼（只輸入數字，包括國家/地區代碼，如：85239173126）",
+      "project_label": "研究計劃",
+      "description_label": "描述",
+      "interval_once_per_one_week": "每星期一次",
+      "interval_twice_per_one_week": "每星期兩次",
+      "interval_once_per_two_weeks": "每兩星期一次",
+      "consent_form_label": "同意書",
+      "consent_agree_label": "同意"
+    },
+    "phases": {
+      "enabled": true,
+      "items": [
+        {
+          "phase_id": 1,
+          "start_date": 0,
+          "length": 10,
+          "prompt": "From the previous Q-methodology study, we extracted 12 distinguishing statements. Those distinguishing statement is asked in the baseline questionnaire. \n\nI want you to discuss the following questions related to that statement. Each statement will have some follow-up questions:\n\n1. 我戒煙是因為大眾對「吸煙者」有負面的印象 -> 你是否同意你戒煙的其中一個原因是為了避開大眾對「吸煙者」的負面印象？這對你的決定有多大影響？\n\n(1: 同意) 你曾否親身經歷過因吸煙而遭受負面目光或被標籤的事件？這些經歷讓你產生了什麼感受？\n(1: 反對) 如果大眾的目光不是主要原因，那麼驅使你決定戒煙的核心內在動力是什麼？\n\n2. 在戒煙前，當我看見其他人吸煙／看到煙具時，我會想吸煙 -> 在你戒煙之前，當你看到其他人吸煙或看到煙灰缸、打火機等煙具時，是否會輕易勾起你想吸煙的衝動？\n\n(2: 同意) 面對這種視覺上的誘惑，你在戒煙初期是如何應對及克服這種環境觸發的？\n(2: 反對) 既然視覺提示不會引起你的煙癮，那麼以往最常觸發你吸煙的因素是什麼（例如特定情緒、時間或習慣）？\n\n\n3. 我戒煙是因為我不想影響我的親人開始吸煙/復吸 -> 你決定戒煙，是否因為擔心自己的吸煙行為會成為壞榜樣，影響身邊的親人開始吸煙或重新吸煙？\n\n(3: 同意) 你身邊是否有親人曾對吸煙產生好奇？作為榜樣的責任感如何幫助你堅持度過戒煙的退斷期？\n(3: 反對) 在你的戒煙過程中，有否考慮過自己的行為對他人的潛在影響，還是這純粹是一個基於個人的決定？\n\n4. 我戒煙是因為我不想我(未來/現在)的子女因二手煙而引發疾病 -> 保護你（現在或未來）的子女免受二手煙帶來的健康威脅，是否為促使你戒煙的主要動力？\n\n(4: 同意) 當你想到二手煙對子女的潛在傷害時，這種強烈的情感如何幫助你克服煙癮發作時的痛苦？\n(4: 反對) 除了子女的健康，有沒有其他特定的考量（例如你自身的身體狀況或經濟因素）讓你下定決心戒煙？"
+        },
+        {
+          "phase_id": 2,
+          "start_date": 10,
+          "length": 10,
+          "prompt": "From the previous Q-methodology study, we extracted 12 distinguishing statements. Those distinguishing statement is asked in the baseline questionnaire. \n\nI want you to discuss the following questions related to that statement. Each statement will have some follow-up questions: \n\n1. 我的家庭／師長／長輩不贊成我吸煙，所以我戒煙 -> 你戒煙的決定，是否主要受到家庭、師長或長輩的反對和壓力所推動？\n\n(1: 同意) 在面對長輩或家人的壓力時，他們的督促在你的戒煙過程中扮演了什麼角色？你會覺得有壓力還是感到被關心？\n(1: 反對) 如果不是因為他人的反對，你是如何從內心萌生出想要改變現狀並戒煙的想法的？\n\n2. 如果讓更多人知道我正在戒煙，我會更加堅定地戒煙 -> 你認為向更多人公開你正在戒煙的決定，會否增加你的責任感，從而讓你更堅定地戒煙？\n\n(2: 同意) 你通常會選擇向哪些人公開你的戒煙計劃？他們的監督和鼓勵為你帶來了什麼具體的幫助？\n(2: 反對) 如果你傾向於低調戒煙，是因為擔心失敗後會感到尷尬，還是你認為戒煙是很個人的事，不需要他人介入？\n\n3. 我以前吸煙是為了與我的朋友／同儕／同事更親近 -> 回想以前，你吸煙是否主要是為了融入社交圈子，或者與朋友、同事建立更親近的關係？\n\n(3: 同意) 在戒煙之後，你如何適應那些原本會一起吸煙的社交場合？有沒有找到其他代替吸煙的社交方式？\n(3: 反對) 如果吸煙不是為了社交，那麼吸煙對你個人來說，最大的心理或生理滿足感來自哪裡？\n\n4. 吸煙能幫助我集中注意力 -> 你是否覺得吸煙能夠幫助你集中精神、釐清思緒或提高工作/學習效率？\n\n(4: 同意) 在戒煙後，當你需要高度集中注意力時（例如工作繁忙），你會用什麼新方法來替代吸煙的提神作用？\n(4: 反對) 既然吸煙不能幫助你集中，你認為以前在工作或學習期間吸煙，主要是滿足了你哪方面的需求？"
+        },
+        {
+          "phase_id": 3,
+          "start_date": 20,
+          "length": 10,
+          "prompt": "From the previous Q-methodology study, we extracted 12 distinguishing statements. Those distinguishing statement is asked in the baseline questionnaire. \n\nI want you to discuss the following questions related to that statement. Each statement will have some follow-up questions: \n\n1. 每當有逃避現實的念頭，我就會想吸煙 -> 當你面對巨大壓力或產生逃避現實的想法時，吸煙是否成為了你主要的情緒宣洩或逃避方式？\n\n(1: 同意) 戒煙之後，當你再次面對生活的挫折或想逃避時，你學會了用什麼健康的方式來處理這些負面情緒？\n(1: 反對) 如果吸煙與逃避壓力無關，你通常在什麼情緒狀態下（例如開心、放鬆）最容易拿起煙？\n\n2. 我感到沉悶時就想吸煙 -> 「感到無聊、沉悶或無所事事」是否為觸發你吸煙慾望的一個常見因素？\n\n(2: 同意) 在戒煙期間，當你感到沉悶時，你會安排什麼活動來分散注意力，打破「無聊就想吸煙」的習慣？\n(2: 反對) 相比於沉悶，有沒有其他更強烈的情緒或情境（例如焦慮、飯後）會讓你立刻產生想吸煙的念頭？\n\n3. 我戒煙是因為我親眼目睹身邊的人因吸煙而引發疾病(如心血管、呼吸問題或癌症) -> 目睹身邊的人因吸煙而患上嚴重疾病，是否成為了促使你立刻決定戒煙的警鐘？\n\n(3: 同意) 這次親身目睹的經歷給你帶來了怎樣的心理震撼？這種恐懼或擔憂如何轉化為你戒煙的行動力？\n(3: 反對) 如果這不是主要原因，你對吸煙可能帶來的長遠健康風險有怎樣的評估？你覺得自己離這些疾病有多遠？\n\n4. 別人不應該勸我戒煙，因為吸煙是我的個人權利 -> 你是否認為吸煙是個人的自由和權利，其他人（即使出於好意）也不應該干涉或勸阻你？\n\n(4: 同意) 當別人勸你戒煙時，你會感到反感嗎？你認為在什麼樣的語境或前提下，你才會真正願意聽取關於戒煙的建議？\n(4: 反對) 既然你不介意別人的勸阻，那麼他人的關心和勸導，對你最終決定戒煙起到了多大的推動作用？"
+        }
+      ]
+    }
+  },
+  "baseline": {
+    "survey_id": "baseline",
+    "version": 1,
+    "title": "Baseline Survey",
+    "invitation_text": "你好，我係智能戒煙輔導員Derek，喺對話之前我想了解你多啲，請問你可以幫忙完成基線問卷嗎？",
+    "link_slug": "baseline",
+    "table_name": "baseline",
+    "questions": [
+      {
+        "id": "q1",
+        "column_name": "age",
+        "type": "numeric",
+        "label": "你今年幾多歲?",
+        "required": true,
+        "placeholder": "e.g. 35"
+      },
+      {
+        "id": "q2",
+        "column_name": "abstinence_days",
+        "type": "numeric",
+        "label": "你已經幾多日無再食煙？",
+        "required": true,
+        "placeholder": "e.g. 10"
+      },
+      {
+        "id": "q3",
+        "column_name": "cigs_per_day",
+        "type": "numeric",
+        "label": "你以前平均每日食幾多支煙？",
+        "required": true,
+        "placeholder": "e.g. 20"
+      },
+      {
+        "id": "q4",
+        "column_name": "S1",
+        "type": "multiple_choice",
+        "label": "Statement 1: 我戒煙是因為大眾對「吸煙者」有負面的印象",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q5",
+        "column_name": "S2",
+        "type": "multiple_choice",
+        "label": "Statement 2: 在戒煙前，當我看見其他人吸煙／看到煙具時，我會想吸煙",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q6",
+        "column_name": "S3",
+        "type": "multiple_choice",
+        "label": "Statement 3: 我戒煙是因為我不想影響我的親人開始吸煙/復吸",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q7",
+        "column_name": "S4",
+        "type": "multiple_choice",
+        "label": "Statement 4: 我戒煙是因為我不想我(未來/現在)的子女因二手煙而引發疾病",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q8",
+        "column_name": "S5",
+        "type": "multiple_choice",
+        "label": "Statement5: 我的家庭／師長／長輩不贊成我吸煙，所以我戒煙",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q9",
+        "column_name": "S6",
+        "type": "multiple_choice",
+        "label": "Statement 6: 如果讓更多人知道我正在戒煙，我會更加堅定地戒煙",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q10",
+        "column_name": "S7",
+        "type": "multiple_choice",
+        "label": "Statement 7: 我以前吸煙是為了與我的朋友／同儕／同事更親近",
+        "required": false,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q11",
+        "column_name": "S8",
+        "type": "multiple_choice",
+        "label": "Statement 8: 吸煙能幫助我集中注意力",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q12",
+        "column_name": "S9",
+        "type": "multiple_choice",
+        "label": "Statement 9: 每當有逃避現實的念頭，我就會想吸煙",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q13",
+        "column_name": "S10",
+        "type": "multiple_choice",
+        "label": "Statement 10: 我感到沉悶時就想吸煙",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q14",
+        "column_name": "S11",
+        "type": "multiple_choice",
+        "label": "Statement 11: 我戒煙是因為我親眼目睹身邊的人因吸煙而引發疾病(如心血管、呼吸問題或癌症)",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      },
+      {
+        "id": "q15",
+        "column_name": "S12",
+        "type": "multiple_choice",
+        "label": "Statement 12: 別人不應該勸我戒煙，因為吸煙是我的個人權利",
+        "required": true,
+        "choices": [
+          {
+            "value": "同意",
+            "label": "同意"
+          },
+          {
+            "value": "不同意",
+            "label": "不同意"
+          }
+        ]
+      }
+    ]
+  },
+  "followups": [
+    {
+      "survey_id": "followup001",
+      "version": 1,
+      "title": "Follow-up 7 days",
+      "invitation_text": "你好，我係智能戒煙輔導員Derek，請問你可以幫忙完成跟進問卷嗎？",
+      "link_slug": "followup001",
+      "table_name": "followup001",
+      "trigger": {
+        "send_frequency": 2,
+        "reminder_interval": 7,
+        "time": 7
+      },
+      "questions": [
+        {
+          "id": "q1",
+          "column_name": "smoke",
+          "type": "multiple_choice",
+          "label": "你最近30日有沒有吸煙？",
+          "required": true,
+          "choices": [
+            {
+              "value": "有",
+              "label": "有"
+            },
+            {
+              "value": "沒有",
+              "label": "沒有"
+            }
+          ]
+        },
+        {
+          "id": "q2",
+          "column_name": "CPD",
+          "type": "numeric",
+          "label": "你現在平均每日吸多少支煙？",
+          "required": true,
+          "placeholder": "e.g. 20",
+          "visibility_logic": {
+            "enabled": true,
+            "group_connector": "and",
+            "groups": [
+              {
+                "row_connector": "or",
+                "conditions": [
+                  {
+                    "field": "q1",
+                    "comparator": "equals",
+                    "value": "有"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "q3",
+          "column_name": "abstinence_days",
+          "type": "numeric",
+          "label": "你已多少天沒有吸煙？",
+          "required": true,
+          "placeholder": "e.g. 60",
+          "visibility_logic": {
+            "enabled": true,
+            "group_connector": "or",
+            "groups": [
+              {
+                "row_connector": "and",
+                "conditions": [
+                  {
+                    "field": "q1",
+                    "comparator": "equals",
+                    "value": "沒有"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "q4",
+          "column_name": "attempt",
+          "type": "multiple_choice",
+          "label": "你有沒再嘗試戒煙？",
+          "required": true,
+          "choices": [
+            {
+              "value": "有",
+              "label": "有"
+            },
+            {
+              "value": "沒有",
+              "label": "沒有"
+            }
+          ],
+          "visibility_logic": {
+            "enabled": true,
+            "group_connector": "or",
+            "groups": [
+              {
+                "row_connector": "and",
+                "conditions": [
+                  {
+                    "field": "q1",
+                    "comparator": "equals",
+                    "value": "有"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "q5",
+          "column_name": "satisfaction",
+          "type": "slider",
+          "label": "你認為聊天機械人有多大程度上可以幫你預防復吸？（0-5分：0分為完全無用－5分為十分有用）",
+          "required": true,
+          "slider_start": 0,
+          "slider_end": 5,
+          "slider_step": 1
+        },
+        {
+          "id": "q6",
+          "column_name": "q6",
+          "type": "date",
+          "label": "請定立一個日期，我們的同事會在這個日期再聯絡你。",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

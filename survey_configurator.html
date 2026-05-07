@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Survey Configurator with Conditional Logic</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --line: #d8dee9;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --blue: #2563eb;
+      --blue-soft: #eaf2ff;
+      --green-soft: #ecfdf5;
+      --red-soft: #fef2f2;
+      --yellow-soft: #fffbeb;
+      --yellow-line: #f59e0b;
+      --logic-bg: #f8fafc;
+      --logic-line: #cbd5e1;
+      --shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: var(--text); background: var(--bg); padding: 24px; }
+    h1, h2, h3, h4 { margin-top: 0; }
+    .page { max-width: 1280px; margin: 0 auto; }
+    .section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 22px; }
+    .section-title { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
+    .subtle { color: var(--muted); font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+    .col-12 { grid-column: span 12; } .col-8 { grid-column: span 8; } .col-6 { grid-column: span 6; } .col-4 { grid-column: span 4; } .col-3 { grid-column: span 3; } .col-2 { grid-column: span 2; }
+    @media (max-width: 900px) { .col-12, .col-8, .col-6, .col-4, .col-3, .col-2 { grid-column: span 12; } }
+    label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+    input[type="text"], input[type="number"], textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; background: #fff; }
+    textarea { min-height: 100px; resize: vertical; }
+    .checkbox-inline { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-weight: 600; font-size: 14px; }
+    .checkbox-inline input { width: auto; }
+    button { border: 1px solid var(--line); background: #fff; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+    button:hover { filter: brightness(0.98); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; filter: none; background: #f3f4f6; }
+    .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .btn-danger { background: var(--red-soft); border-color: #fca5a5; color: #991b1b; }
+    .btn-soft { background: var(--blue-soft); border-color: #bfdbfe; color: #1d4ed8; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .survey-card, .question-card, .choice-card { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 16px; margin-top: 14px; }
+    .baseline-card { background: var(--green-soft); border-color: #86efac; }
+    .followup-card { background: var(--blue-soft); border-color: #93c5fd; }
+    .question-card { background: #fafafa; }
+    .choice-card { background: #fff; padding: 12px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .card-header .title { font-weight: 700; }
+    .mini-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mono-preview { background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 16px; white-space: pre-wrap; word-break: break-word; min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; overflow: auto; }
+    .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .pill { display: inline-block; background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+    .warning-box { display: none; margin-top: 16px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--yellow-line); background: var(--yellow-soft); color: #92400e; font-size: 14px; white-space: pre-wrap; }
+    .button-reminder { display:none; margin-top:8px; font-size:13px; color:#92400e; }
+    .btn-disabled-custom { background:#e5e7eb !important; color:#9ca3af !important; border-color:#d1d5db !important; cursor:not-allowed !important; filter:none !important; }
+    .field-warning { border-color: var(--yellow-line) !important; background: #fffaf0; }
+    .logic-panel { margin-top: 16px; padding: 14px; border: 1px dashed var(--logic-line); border-radius: 12px; background: var(--logic-bg); }
+    .logic-group { border: 1px dashed var(--logic-line); border-radius: 10px; padding: 14px; margin-top: 12px; background: #fff; }
+    .logic-group-toggle { margin: 12px 0 0; width: 92px; }
+    .logic-row { display: grid; grid-template-columns: 90px 1.3fr 1.1fr 1.2fr 42px; gap: 8px; align-items: center; margin-top: 10px; }
+    .logic-row .connector-select:disabled, .logic-group-toggle:disabled { opacity: 0.65; background: #f3f4f6; color: #9ca3af; }
+    .logic-remove { width: 40px; height: 40px; padding: 0; border-radius: 999px; font-size: 18px; line-height: 1; color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+    .logic-add-link { margin-top: 12px; color: #2563eb; font-weight: 600; border: none; background: transparent; padding: 0; }
+    .logic-header-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .logic-summary { font-size: 12px; color: var(--muted); }
+
+    .schedule-question-box { border: 1px dashed var(--line); border-radius: 12px; padding: 14px; background: #fafcff; margin-top: 8px; }
+    .weekday-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top: 10px; }
+    .weekday-grid label { display: flex; align-items: center; gap: 8px; font-weight: 500; margin: 0; }
+    .weekday-grid input[type="checkbox"] { width: auto; }
+
+    .phase-card { border: 1px dashed var(--line); border-radius: 12px; background: #fcfcff; padding: 16px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="section"><div class="section-title"><div><h1>Survey Configuration Builder</h1><div class="subtle">Baseline plus unlimited follow-up questionnaires, with per-question conditional logic groups.</div></div></div></div>
+    <div class="section">
+      <div class="section-title"><div><h2>1. Project Settings</h2><div class="subtle">These fields apply to the whole config file.</div></div></div>
+      <div class="grid">
+        <div class="col-6"><label for="projectName">Project name</label><input id="projectName" type="text" placeholder="Smoking relapse chatbot project" /></div>
+        <div class="col-3"><label for="projectVersion">Project version</label><input id="projectVersion" type="number" min="1" value="1" /></div>
+        <div class="col-3"><label for="interventionPeriod">Intervention period (days)</label><input id="interventionPeriod" type="number" min="0" step="1" value="0" placeholder="e.g. 30" /><div class="hint">Integer days, e.g., 10 or 30.</div></div>
+        <div class="col-12"><label for="interventionEndMessage">Intervention end message</label><textarea id="interventionEndMessage" placeholder="This message will be sent to the client when the intervention period is over."></textarea><div class="hint">This text will be sent to the client when the intervention period ends.</div></div>
+        <div class="col-12"><label for="verificationMessage">Verification message</label><textarea id="verificationMessage" placeholder="This message will be sent to participants while they are waiting for admin verification before chatting with the chatbot."></textarea><div class="hint">This text will be sent to participants in the waiting list until admin verifies them.</div></div>
+        <div class="col-12"><label for="consentFormText">Consent form text</label><textarea id="consentFormText" placeholder="Enter the consent form text shown to participants before they join the study."></textarea><div class="hint">This text will be shown as the consent form for participants.</div></div>
+
+<div class="col-12">
+  <div class="schedule-question-box">
+    <label>Survey translation labels</label>
+    <div class="hint">These labels affect the wording shown in the participant survey page. Edit them when you want the survey UI to appear in another language.</div>
+    <div class="grid">
+      <div class="col-6">
+        <label>Message interval label</label>
+        <input id="t_message_interval_label" type="text" value="Message interval" />
+        <div class="hint">Controls the survey label for the chatbot message interval field.</div>
+      </div>
+      <div class="col-6">
+        <label>Participant name label</label>
+        <input id="t_participant_name_label" type="text" value="Participant name" />
+        <div class="hint">Controls the survey label asking for the participant's name.</div>
+      </div>
+      <div class="col-6">
+        <label>Respondent phone label</label>
+        <input id="t_respondent_phone_label" type="text" value="Your WhatsApp phone number (numbers only)" />
+        <div class="hint">Controls the survey label asking for the participant's WhatsApp phone number.</div>
+      </div>
+      <div class="col-6">
+        <label>Project label</label>
+        <input id="t_project_label" type="text" value="Project" />
+        <div class="hint">Controls the survey label for the project name field.</div>
+      </div>
+      <div class="col-6">
+        <label>Description label</label>
+        <input id="t_description_label" type="text" value="Description" />
+        <div class="hint">Controls the survey label for the project description field.</div>
+      </div>
+      <div class="col-6">
+        <label>Interval once per one week</label>
+        <input id="t_interval_once_per_one_week" type="text" value="Interval once per one week" />
+        <div class="hint">Translation for interval once per one week.</div>
+      </div>
+      <div class="col-6">
+        <label>Interval twice per one week</label>
+        <input id="t_interval_twice_per_one_week" type="text" value="Interval twice per one week" />
+        <div class="hint">Translation for interval twice per one week.</div>
+      </div>
+      <div class="col-6">
+        <label>Interval once per two weeks</label>
+        <input id="t_interval_once_per_two_weeks" type="text" value="Interval once per two weeks" />
+        <div class="hint">Translation for interval once per two weeks.</div>
+      </div>
+      <div class="col-6">
+        <label>Consent form label</label>
+        <input id="t_consent_form_label" type="text" value="Consent Form" />
+        <div class="hint">Translation for consent form label.</div>
+      </div>
+      <div class="col-6">
+        <label>Consent agree label</label>
+        <input id="t_consent_agree_label" type="text" value="I agree" />
+        <div class="hint">Translation for consent agree/confirm button or checkbox label.</div>
+      </div>
+
+
+    </div>
+  </div>
+</div>
+
+        <div class="col-3"><label for="cronTaskTime">Cron task time (HHMM)</label><input id="cronTaskTime" type="number" min="0" max="2359" step="1" value="1500" placeholder="e.g. 1500" /><div class="hint">Enter the admin local time here. Example: 1500 means 15:00 in the admin time zone.</div></div>
+        <div class="col-3"><label for="adminUtcOffset">UTC</label><input id="adminUtcOffset" type="text" value="+8" placeholder="e.g. +8, -5, +5.5" /><div class="hint">Admin time zone offset. This field is not stored in JSON. It is only used to convert cron_task_time into UTC+0 before export.</div></div>
+        <div class="col-6"><label>UTC conversion preview</label><div id="cronUtcPreview" class="hint" style="margin-top:0; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; min-height:42px; display:flex; align-items:center;">Local 15:00 at UTC+8 → stored as 0700 in JSON.</div></div>
+        <div class="col-12">
+          <div class="schedule-question-box">
+            <label>Once per one week</label>
+            <div class="hint">Choose exactly 1 weekday for automatic chatbot messages.</div>
+            <div class="weekday-grid" id="oncePerWeekBox">
+              <label><input type="checkbox" class="weekday-once-per-week" value="Monday" onchange="limitWeekdaySelection('weekday-once-per-week', 1)" /> Monday</label>
+              <label><input type="checkbox" class="weekday-once-per-week" value="Tuesday" onchange="limitWeekdaySelection('weekday-once-per-week', 1)" /> Tuesday</label>
+              <label><input type="checkbox" class="weekday-once-per-week" value="Wednesday" onchange="limitWeekdaySelection('weekday-once-per-week', 1)" /> Wednesday</label>
+              <label><input type="checkbox" class="weekday-once-per-week" value="Thursday" onchange="limitWeekdaySelection('weekday-once-per-week', 1)" /> Thursday</label>
+              <label><input type="checkbox" class="weekday-once-per-week" value="Friday" onchange="limitWeekdaySelection('weekday-once-per-week', 1)" /> Friday</label>
+              <label><input type="checkbox" class="weekday-once-per-week" value="Saturday" onchange="limitWeekdaySelection('weekday-once-per-week', 1)" /> Saturday</label>
+              <label><input type="checkbox" class="weekday-once-per-week" value="Sunday" onchange="limitWeekdaySelection('weekday-once-per-week', 1)" /> Sunday</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="schedule-question-box">
+            <label>Twice per one week</label>
+            <div class="hint">Choose exactly 2 weekdays for automatic chatbot messages.</div>
+            <div class="weekday-grid" id="twicePerWeekBox">
+              <label><input type="checkbox" class="weekday-twice-per-week" value="Monday" onchange="limitWeekdaySelection('weekday-twice-per-week', 2)" /> Monday</label>
+              <label><input type="checkbox" class="weekday-twice-per-week" value="Tuesday" onchange="limitWeekdaySelection('weekday-twice-per-week', 2)" /> Tuesday</label>
+              <label><input type="checkbox" class="weekday-twice-per-week" value="Wednesday" onchange="limitWeekdaySelection('weekday-twice-per-week', 2)" /> Wednesday</label>
+              <label><input type="checkbox" class="weekday-twice-per-week" value="Thursday" onchange="limitWeekdaySelection('weekday-twice-per-week', 2)" /> Thursday</label>
+              <label><input type="checkbox" class="weekday-twice-per-week" value="Friday" onchange="limitWeekdaySelection('weekday-twice-per-week', 2)" /> Friday</label>
+              <label><input type="checkbox" class="weekday-twice-per-week" value="Saturday" onchange="limitWeekdaySelection('weekday-twice-per-week', 2)" /> Saturday</label>
+              <label><input type="checkbox" class="weekday-twice-per-week" value="Sunday" onchange="limitWeekdaySelection('weekday-twice-per-week', 2)" /> Sunday</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="schedule-question-box">
+            <label>Once per two weeks</label>
+            <div class="hint">Choose exactly 1 weekday for automatic chatbot messages.</div>
+            <div class="weekday-grid" id="oncePerTwoWeeksBox">
+              <label><input type="checkbox" class="weekday-once-per-two-weeks" value="Monday" onchange="limitWeekdaySelection('weekday-once-per-two-weeks', 1)" /> Monday</label>
+              <label><input type="checkbox" class="weekday-once-per-two-weeks" value="Tuesday" onchange="limitWeekdaySelection('weekday-once-per-two-weeks', 1)" /> Tuesday</label>
+              <label><input type="checkbox" class="weekday-once-per-two-weeks" value="Wednesday" onchange="limitWeekdaySelection('weekday-once-per-two-weeks', 1)" /> Wednesday</label>
+              <label><input type="checkbox" class="weekday-once-per-two-weeks" value="Thursday" onchange="limitWeekdaySelection('weekday-once-per-two-weeks', 1)" /> Thursday</label>
+              <label><input type="checkbox" class="weekday-once-per-two-weeks" value="Friday" onchange="limitWeekdaySelection('weekday-once-per-two-weeks', 1)" /> Friday</label>
+              <label><input type="checkbox" class="weekday-once-per-two-weeks" value="Saturday" onchange="limitWeekdaySelection('weekday-once-per-two-weeks', 1)" /> Saturday</label>
+              <label><input type="checkbox" class="weekday-once-per-two-weeks" value="Sunday" onchange="limitWeekdaySelection('weekday-once-per-two-weeks', 1)" /> Sunday</label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-12">
+          <div class="schedule-question-box">
+            <label>Multi-phases project</label>
+            <div class="checkbox-inline">
+              <input type="checkbox" id="isMultiPhases" onchange="togglePhasesSection()" />
+              <span>Enable phases for this project</span>
+            </div>
+            <div class="hint">If enabled, you can add unlimited phases. Phase ID is auto-generated in order: 1, 2, 3, ...</div>
+            <div id="phasesSection" style="display:none; margin-top:12px;">
+              <div class="card-header" style="margin-bottom:8px;">
+                <div class="title">Phases</div>
+                <button type="button" class="btn-primary" onclick="addPhase()">+ Add Phase</button>
+              </div>
+              <div id="phasesContainer"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-3"><label for="defaultLanguage">Default language</label><input id="defaultLanguage" type="text" value="en" placeholder="en" /></div>
+        <div class="col-12"><label for="projectDescription">Project description</label><textarea id="projectDescription" placeholder="Describe the survey project here..."></textarea></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div><h2>2. Baseline Questionnaire</h2><div class="subtle">This block always exists and is sent first.</div></div><span class="pill">Required</span></div>
+      <div id="baselineContainer"></div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div><h2>3. Follow-up Questionnaires</h2><div class="subtle">Add as many follow-up questionnaires as needed.</div></div><button class="btn-primary" onclick="addFollowupSurvey()">+ Add Follow-up Questionnaire</button></div>
+      <div id="followupContainer"></div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div><h2>4. Generate / Import JSON</h2><div class="subtle">Preview the JSON, download it, or import an existing config file.</div></div></div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="generateConfig()" id="generateBtn">Generate JSON</button>
+        <button onclick="downloadConfig()">Download JSON</button>
+        <button onclick="copyConfig()">Copy JSON</button>
+      </div>
+      <div id="scheduleReminder" class="button-reminder">Please complete all three schedule questions before generating JSON.</div>
+      <div id="warningBox" class="warning-box"></div>
+      <div style="margin-top:16px;">
+        <label for="importInput">Import existing JSON config</label>
+        <textarea id="importInput" placeholder="Paste JSON here..."></textarea>
+        <div class="btn-row"><button class="btn-soft" onclick="importConfig()">Import JSON</button></div>
+      </div>
+      <div style="margin-top:16px;"><label>Generated JSON preview</label><pre id="output" class="mono-preview"></pre></div>
+    </div>
+  </div>
+<script>
+let followupCounter = 0;
+let followupIdCounter = 1;
+const defaultBaseline = { survey_id:'baseline', version:1, title:'Baseline Survey', invitation_text:'We want to invite you to complete a survey', link_slug:'baseline', table_name:'baseline', trigger:{}, questions:[] };
+function nextFollowupId(){ while(document.querySelector(`.survey-card[data-survey-id="followup${String(followupIdCounter).padStart(3,'0')}"]`)){ followupIdCounter += 1; } const id = `followup${String(followupIdCounter).padStart(3,'0')}`; followupIdCounter += 1; return id; }
+function defaultFollowup(){ const id = nextFollowupId(); return { survey_id:id, version:1, title:'Follow-up Survey', invitation_text:'Please complete your follow-up survey', link_slug:id, table_name:id, trigger:{ send_frequency:1, reminder_interval:7, time:30 }, questions:[] }; }
+function esc(str){ return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showWarning(message){ const box = document.getElementById('warningBox'); if(!message){ box.style.display='none'; box.textContent=''; return; } box.textContent=message; box.style.display='block'; }
+function clearFieldWarnings(){ document.querySelectorAll('.field-warning').forEach(el => el.classList.remove('field-warning')); }
+function emptyLogic(){ return { enabled:false, group_connector:'or', groups:[{ row_connector:'and', conditions:[{ field:'', comparator:'equals', value:'' }] }] }; }
+function createQuestionCard(prefix,qIndex,question=null){
+  const q = question || { id:`q${qIndex+1}`, column_name:`q${qIndex+1}`, type:'text', label:'', required:false, placeholder:'', choices:[], visibility_logic:emptyLogic() };
+  const logic = q.visibility_logic || emptyLogic();
+  const wrap = document.createElement('div');
+  wrap.className = 'question-card';
+  wrap.dataset.questionId = qIndex;
+  wrap.innerHTML = `
+    <div class="card-header">
+      <div class="title">Question ${qIndex + 1}</div>
+      <div class="mini-actions">
+        <button type="button" onclick="moveQuestion(this, -1)">↑ Move Up</button>
+        <button type="button" onclick="moveQuestion(this, 1)">↓ Move Down</button>
+        <button type="button" class="btn-danger" onclick="removeQuestion(this)">Remove Question</button>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="col-3"><label>Question ID</label><input type="text" class="question-id" value="${esc(q.id)}" placeholder="q1" /></div>
+      <div class="col-3"><label>Column name</label><input type="text" class="question-column" value="${esc(q.column_name)}" placeholder="age" /><div class="hint">Must be unique inside this table only.</div></div>
+      <div class="col-3">
+        <label>Question type</label>
+        <select class="question-type" onchange="toggleChoiceArea(this)">
+          <option value="text" ${q.type === 'text' ? 'selected' : ''}>text</option>
+          <option value="numeric" ${q.type === 'numeric' ? 'selected' : ''}>numeric</option>
+          <option value="date" ${q.type === 'date' ? 'selected' : ''}>date</option>
+          <option value="slider" ${q.type === 'slider' ? 'selected' : ''}>slider</option>
+          <option value="multiple_choice" ${q.type === 'multiple_choice' ? 'selected' : ''}>multiple_choice</option>
+          <option value="multiple_select" ${q.type === 'multiple_select' ? 'selected' : ''}>multiple_select</option>
+        </select>
+        <div class="hint">numeric behaves like text but marks the answer as a number field. date needs no extra setup. slider needs start, end, and step.</div>
+      </div>
+      <div class="col-3"><label>Required</label><div class="checkbox-inline"><input type="checkbox" class="question-required" ${q.required ? 'checked' : ''} /><span>Required question</span></div></div>
+      <div class="col-12"><label>Question label</label><input type="text" class="question-label" value="${esc(q.label)}" placeholder="Please enter your age" /></div>
+      <div class="col-12 text-placeholder-wrap"><label>Placeholder</label><input type="text" class="question-placeholder" value="${esc(q.placeholder || '')}" placeholder="e.g. 35" /></div>
+    </div>
+    <div class="slider-wrap" style="display:none; margin-top:12px;">
+      <div class="grid">
+        <div class="col-4">
+          <label>Slider starting value</label>
+          <input type="number" class="slider-start" value="${Number(q.slider_start ?? q.start_value ?? 0)}" step="any" />
+        </div>
+        <div class="col-4">
+          <label>Slider end value</label>
+          <input type="number" class="slider-end" value="${Number(q.slider_end ?? q.end_value ?? 10)}" step="any" />
+        </div>
+        <div class="col-4">
+          <label>Slider step</label>
+          <input type="number" class="slider-step" value="${Number(q.slider_step ?? q.step ?? 1)}" min="0.000001" step="any" />
+        </div>
+      </div>
+      <div class="hint">Use slider for numeric rating questions, such as 0 to 10 with step 1.</div>
+    </div>
+    <div class="choice-wrap" style="display:none; margin-top:12px;">
+      <div class="card-header" style="margin-bottom:8px;"><div class="title">Choices</div><button type="button" class="btn-soft" onclick="addChoice(this)">+ Add Choice</button></div>
+      <div class="choices-container"></div>
+    </div>
+    <div class="logic-panel">
+      <div class="logic-header-line">
+        <div class="title">Conditional Logic</div>
+        <div class="checkbox-inline" style="margin-top:0;"><input type="checkbox" class="logic-enabled" onchange="toggleLogicEnabled(this)" ${logic.enabled ? 'checked' : ''} /><span>Enable conditional display</span></div>
+      </div>
+      <div class="logic-summary">Set rules to decide when this question should be shown. Inside each group, all connectors are either AND or OR. Between groups, the connector is also either AND or OR.</div>
+      <div class="logic-body" style="${logic.enabled ? '' : 'display:none;'}">
+        <select class="logic-group-toggle" onchange="applyGroupConnector(this)">
+          <option value="and" ${logic.group_connector === 'and' ? 'selected' : ''}>And</option>
+          <option value="or" ${logic.group_connector === 'or' ? 'selected' : ''}>Or</option>
+        </select>
+        <div class="logic-groups"></div>
+        <button type="button" class="logic-add-link" onclick="addLogicGroup(this)">⊕ Add new group</button>
+      </div>
+    </div>`;
+  const choicesContainer = wrap.querySelector('.choices-container');
+  (q.choices || []).forEach(choice => choicesContainer.appendChild(createChoiceCard(choice)));
+  toggleChoiceArea(wrap.querySelector('.question-type'));
+  const groupsContainer = wrap.querySelector('.logic-groups');
+  (logic.groups || []).forEach((group, idx) => groupsContainer.appendChild(createLogicGroupCard(group, idx, logic.group_connector || 'or')));
+  refreshLogicGroupUI(wrap);
+  return wrap;
+}
+function createChoiceCard(choice=null){
+  const c = choice || { value:'', label:'' };
+  const wrap = document.createElement('div');
+  wrap.className = 'choice-card';
+  wrap.innerHTML = `<div class="grid">
+    <div class="col-4"><label>Choice value</label><input type="text" class="choice-value" value="${esc(c.value)}" placeholder="daily" /></div>
+    <div class="col-6"><label>Choice label</label><input type="text" class="choice-label" value="${esc(c.label)}" placeholder="Daily smoker" /></div>
+    <div class="col-2"><label>&nbsp;</label><div class="mini-actions"><button type="button" onclick="moveChoice(this, -1)">↑</button><button type="button" onclick="moveChoice(this, 1)">↓</button><button type="button" class="btn-danger" onclick="removeChoice(this)">Remove</button></div></div>
+  </div>`;
+  return wrap;
+}
+function createLogicGroupCard(group=null, idx=0, groupConnector='or'){
+  const g = group || { row_connector:'and', conditions:[{ field:'', comparator:'equals', value:'' }] };
+  const wrap = document.createElement('div');
+  wrap.className = 'logic-group';
+  wrap.innerHTML = `<div class="logic-header-line"><div class="title">Group ${idx + 1}</div><div class="mini-actions"><button type="button" onclick="removeLogicGroup(this)">Remove Group</button></div></div><div class="logic-rows"></div><button type="button" class="logic-add-link" onclick="addLogicRow(this)">⊕ Add filter</button>`;
+  const rowsContainer = wrap.querySelector('.logic-rows');
+  (g.conditions || []).forEach((cond, rowIdx) => rowsContainer.appendChild(createLogicRow(cond, rowIdx, g.row_connector || 'and')));
+  return wrap;
+}
+function createLogicRow(cond=null, rowIdx=0, rowConnector='and'){
+  const c = cond || { field:'', comparator:'equals', value:'' };
+  const row = document.createElement('div');
+  row.className = 'logic-row';
+  row.innerHTML = `<select class="connector-select" onchange="applyRowConnector(this)">
+      <option value="and" ${rowConnector === 'and' ? 'selected' : ''}>And</option>
+      <option value="or" ${rowConnector === 'or' ? 'selected' : ''}>Or</option>
+    </select>
+    <select class="logic-field"><option value="">Select Field</option></select>
+    <select class="logic-comparator">
+      <option value="equals" ${c.comparator === 'equals' ? 'selected' : ''}>equals</option>
+      <option value="not_equals" ${c.comparator === 'not_equals' ? 'selected' : ''}>not equals</option>
+      <option value="greater_than" ${c.comparator === 'greater_than' ? 'selected' : ''}>is greater than</option>
+      <option value="less_than" ${c.comparator === 'less_than' ? 'selected' : ''}>is less than</option>
+      <option value="contains" ${c.comparator === 'contains' ? 'selected' : ''}>contains</option>
+      <option value="not_contains" ${c.comparator === 'not_contains' ? 'selected' : ''}>does not contain</option>
+      <option value="is_answered" ${c.comparator === 'is_answered' ? 'selected' : ''}>is answered</option>
+      <option value="is_not_answered" ${c.comparator === 'is_not_answered' ? 'selected' : ''}>is not answered</option>
+    </select>
+    <input type="text" class="logic-value" value="${esc(c.value || '')}" placeholder="Enter value" />
+    <button type="button" class="logic-remove" onclick="removeLogicRow(this)">−</button>`;
+  row.querySelector('.logic-field').dataset.selectedValue = c.field || '';
+  return row;
+}
+function renderSurveyCard(survey, container, isBaseline=false){
+  const card = document.createElement('div');
+  card.className = `survey-card ${isBaseline ? 'baseline-card' : 'followup-card'}`;
+  card.dataset.surveyId = String(survey.survey_id || '');
+  if(!isBaseline) card.dataset.followup = 'true';
+
+  const actionButtons = isBaseline ? '' : `<button type="button" onclick="moveSurvey(this, -1)">↑ Move Up</button><button type="button" onclick="moveSurvey(this, 1)">↓ Move Down</button><button type="button" class="btn-danger" onclick="removeFollowupSurvey(this)">Remove Follow-up</button>`;
+  const surveyIdHint = isBaseline
+    ? '<div class="hint">Baseline ID can be descriptive.</div>'
+    : '<div class="hint">Follow-up survey_id must be in the format followup001. link_slug and table_name default to this value, but you can edit them separately.</div>';
+  const triggerSection = isBaseline ? '' : `
+      <div class="col-4"><label>Trigger send_frequency</label><input type="number" class="survey-send-frequency" min="1" step="1" value="${Number(survey.trigger?.send_frequency ?? 1)}" /><div class="hint">Maximum number of messages that will be sent to prompt participant to finish the follow-up.</div></div>
+      <div class="col-4"><label>Trigger reminder_interval</label><input type="number" class="survey-reminder-interval" min="1" step="1" value="${Number(survey.trigger?.reminder_interval ?? 7)}" /><div class="hint">Reminder interval in days when participant did not complete questionnaire.</div></div>
+      <div class="col-4"><label>Trigger time</label><input type="number" class="survey-trigger-time" min="0" value="${Number(survey.trigger?.time ?? 0)}" /><div class="hint">0 = send when participant finishes baseline. 30 = send 30 days after baseline.</div></div>`;
+
+  card.innerHTML = `<div class="card-header"><div class="title">${isBaseline ? 'Baseline Questionnaire' : 'Follow-up Questionnaire'}</div><div class="mini-actions">${actionButtons}</div></div>
+    <div class="grid">
+      <div class="col-4"><label>Survey ID</label><input type="text" class="survey-id" value="${esc(survey.survey_id)}" placeholder="baseline_smoking_survey" ${isBaseline ? '' : 'maxlength="11"'} ${isBaseline ? '' : 'oninput="syncFollowupIdentity(this)"'} />${surveyIdHint}</div>
+      <div class="col-2"><label>Version</label><input type="number" class="survey-version" min="1" value="${Number(survey.version || 1)}" /></div>
+      <div class="col-3"><label>Link slug</label><input type="text" class="survey-link-slug" value="${esc(survey.link_slug)}" placeholder="baseline-smoke-v1" /></div>
+      <div class="col-3"><label>Table name</label><input type="text" class="survey-table-name" value="${esc(survey.table_name)}" placeholder="survey1" /></div>
+      <div class="col-6"><label>Title</label><input type="text" class="survey-title" value="${esc(survey.title)}" placeholder="Baseline Survey" /></div>
+      <div class="col-6"><label>Invitation text</label><input type="text" class="survey-invitation-text" value="${esc(survey.invitation_text || '')}" placeholder="We want to invite you to complete a survey" /></div>
+      ${triggerSection}
+    </div>
+    <div style="margin-top:16px;"><div class="card-header"><div class="title">Questions</div><button type="button" class="btn-primary" onclick="addQuestion(this)">+ Add Question</button></div><div class="questions-container"></div></div>`;
+
+  const qContainer = card.querySelector('.questions-container');
+  (survey.questions || []).forEach((question, idx) => qContainer.appendChild(createQuestionCard(isBaseline ? 'baseline' : 'followup', idx, question)));
+  container.appendChild(card);
+  if(!isBaseline) normalizeFollowupCard(card, survey.survey_id);
+  refreshLogicFieldOptions(card);
+}
+
+function buildBaseline(){ const container = document.getElementById('baselineContainer'); container.innerHTML=''; renderSurveyCard(defaultBaseline, container, true); }
+function addFollowupSurvey(data=null){ followupCounter += 1; const container = document.getElementById('followupContainer'); renderSurveyCard(data || defaultFollowup(), container, false); }
+function removeFollowupSurvey(btn){ const card = btn.closest('.survey-card'); if(card) card.remove(); clearFieldWarnings(); showWarning(''); }
+function moveSurvey(btn,direction){ const card = btn.closest('.survey-card'); const container = card.parentElement; if(direction < 0 && card.previousElementSibling){ container.insertBefore(card, card.previousElementSibling); } else if(direction > 0 && card.nextElementSibling){ container.insertBefore(card.nextElementSibling, card); } }
+function addQuestion(btn,questionData=null){ const surveyCard = btn.closest('.survey-card'); const qContainer = surveyCard.querySelector('.questions-container'); const qIndex = qContainer.querySelectorAll('.question-card').length; qContainer.appendChild(createQuestionCard('', qIndex, questionData)); refreshQuestionTitles(qContainer); refreshLogicFieldOptions(surveyCard); }
+function removeQuestion(btn){ const card = btn.closest('.question-card'); const surveyCard = card.closest('.survey-card'); const container = card.parentElement; card.remove(); refreshQuestionTitles(container); refreshLogicFieldOptions(surveyCard); clearFieldWarnings(); showWarning(''); }
+function moveQuestion(btn,direction){ const card = btn.closest('.question-card'); const surveyCard = card.closest('.survey-card'); const container = card.parentElement; if(direction < 0 && card.previousElementSibling){ container.insertBefore(card, card.previousElementSibling); } else if(direction > 0 && card.nextElementSibling){ container.insertBefore(card.nextElementSibling, card); } refreshQuestionTitles(container); refreshLogicFieldOptions(surveyCard); }
+function refreshQuestionTitles(container){ const cards = container.querySelectorAll('.question-card'); cards.forEach((card, idx) => { const title = card.querySelector('.card-header .title'); title.textContent = `Question ${idx + 1}`; const idInput = card.querySelector('.question-id'); const colInput = card.querySelector('.question-column'); if(!idInput.value.trim()) idInput.value = `q${idx + 1}`; if(!colInput.value.trim()) colInput.value = `q${idx + 1}`; }); }
+function toggleChoiceArea(selectEl){
+  const card = selectEl.closest('.question-card');
+  const wrap = card.querySelector('.choice-wrap');
+  const placeholderWrap = card.querySelector('.text-placeholder-wrap');
+  const sliderWrap = card.querySelector('.slider-wrap');
+  const type = selectEl.value;
+  const showChoices = type === 'multiple_choice' || type === 'multiple_select';
+  wrap.style.display = showChoices ? 'block' : 'none';
+  placeholderWrap.style.display = (type === 'text' || type === 'numeric') ? 'block' : 'none';
+  if(sliderWrap) sliderWrap.style.display = type === 'slider' ? 'block' : 'none';
+}
+function addChoice(btn, choiceData=null){ const qCard = btn.closest('.question-card'); const container = qCard.querySelector('.choices-container'); container.appendChild(createChoiceCard(choiceData)); }
+function removeChoice(btn){ const card = btn.closest('.choice-card'); if(card) card.remove(); }
+function moveChoice(btn,direction){ const card = btn.closest('.choice-card'); const container = card.parentElement; if(direction < 0 && card.previousElementSibling){ container.insertBefore(card, card.previousElementSibling); } else if(direction > 0 && card.nextElementSibling){ container.insertBefore(card.nextElementSibling, card); } }
+function toggleLogicEnabled(checkbox){ const panel = checkbox.closest('.logic-panel'); const body = panel.querySelector('.logic-body'); body.style.display = checkbox.checked ? '' : 'none'; }
+function addLogicGroup(btn, groupData=null){ const panel = btn.closest('.logic-panel'); const groupsContainer = panel.querySelector('.logic-groups'); const groupConnector = panel.querySelector('.logic-group-toggle').value; groupsContainer.appendChild(createLogicGroupCard(groupData, groupsContainer.children.length, groupConnector)); refreshLogicGroupUI(panel.closest('.question-card')); refreshLogicFieldOptions(panel.closest('.survey-card')); }
+function removeLogicGroup(btn){ const questionCard = btn.closest('.question-card'); const group = btn.closest('.logic-group'); if(group) group.remove(); refreshLogicGroupUI(questionCard); }
+function addLogicRow(btn, rowData=null){ const group = btn.closest('.logic-group'); const rowsContainer = group.querySelector('.logic-rows'); const rowConnector = getGroupRowConnector(group); rowsContainer.appendChild(createLogicRow(rowData, rowsContainer.children.length, rowConnector)); refreshLogicGroupUI(group.closest('.question-card')); refreshLogicFieldOptions(group.closest('.survey-card')); }
+function removeLogicRow(btn){ const questionCard = btn.closest('.question-card'); const row = btn.closest('.logic-row'); if(row) row.remove(); refreshLogicGroupUI(questionCard); }
+function applyRowConnector(selectEl){ const group = selectEl.closest('.logic-group'); const chosen = selectEl.value; group.querySelectorAll('.connector-select').forEach(sel => { sel.value = chosen; }); refreshLogicGroupUI(group.closest('.question-card')); }
+function applyGroupConnector(selectEl){ refreshLogicGroupUI(selectEl.closest('.question-card')); }
+function getGroupRowConnector(group){ const first = group.querySelector('.connector-select'); return first ? first.value : 'and'; }
+function refreshLogicGroupUI(questionCard){
+  if(!questionCard) return;
+  const panel = questionCard.querySelector('.logic-panel');
+  const groupConnectorSelect = panel.querySelector('.logic-group-toggle');
+  const groups = Array.from(panel.querySelectorAll('.logic-group'));
+  groups.forEach((group, groupIdx) => {
+    group.querySelector('.logic-header-line .title').textContent = `Group ${groupIdx + 1}`;
+    group.querySelector('.logic-header-line .mini-actions button').disabled = groups.length === 1;
+    const rows = Array.from(group.querySelectorAll('.logic-row'));
+    const rowConnector = rows[0]?.querySelector('.connector-select')?.value || 'and';
+    rows.forEach((row, rowIdx) => {
+      const connector = row.querySelector('.connector-select');
+      connector.value = rowConnector;
+      connector.disabled = rowIdx === 0;
+      row.querySelector('.logic-remove').disabled = rows.length === 1;
+    });
+  });
+  groupConnectorSelect.disabled = groups.length <= 1;
+}
+function refreshLogicFieldOptions(surveyCard){
+  if(!surveyCard) return;
+  const questions = Array.from(surveyCard.querySelectorAll('.question-card'));
+  questions.forEach(currentCard => {
+    const available = questions
+      .filter(card => card !== currentCard)
+      .map(card => ({
+        id: card.querySelector('.question-id').value.trim(),
+        label: card.querySelector('.question-label').value.trim() || card.querySelector('.question-column').value.trim() || card.querySelector('.question-id').value.trim()
+      }))
+      .filter(item => item.id);
+    currentCard.querySelectorAll('.logic-field').forEach(select => {
+      const selected = select.dataset.selectedValue || select.value || '';
+      select.innerHTML = '<option value="">Select Field</option>';
+      available.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = `${item.id} — ${item.label}`;
+        if(item.id === selected) opt.selected = true;
+        select.appendChild(opt);
+      });
+      if(selected && !available.some(item => item.id === selected)) select.value = '';
+      select.dataset.selectedValue = select.value;
+      select.onchange = function(){ this.dataset.selectedValue = this.value; };
+    });
+  });
+}
+function normalizeFollowupId(raw){ const value = String(raw ?? '').trim().toLowerCase(); const match = value.match(/^followup(\d{1,3})$/); if(!match) return ''; return `followup${String(parseInt(match[1],10)).padStart(3,'0')}`; }
+function normalizeFollowupCard(card, preferredId){ const idInput = card.querySelector('.survey-id'); let normalized = normalizeFollowupId(preferredId || idInput.value); if(!normalized) normalized = nextFollowupId(); idInput.value = normalized; card.dataset.surveyId = normalized; }
+function syncFollowupIdentity(input){ const card = input.closest('.survey-card'); normalizeFollowupCard(card, input.value); clearFieldWarnings(); showWarning(''); }
+function logicPanelToJson(questionCard){
+  const panel = questionCard.querySelector('.logic-panel');
+  const enabled = panel.querySelector('.logic-enabled').checked;
+  const logic = { enabled, group_connector: panel.querySelector('.logic-group-toggle').value, groups: [] };
+  if(!enabled) return logic;
+  logic.groups = Array.from(panel.querySelectorAll('.logic-group')).map(group => ({
+    row_connector: getGroupRowConnector(group),
+    conditions: Array.from(group.querySelectorAll('.logic-row')).map(row => ({
+      field: row.querySelector('.logic-field').value,
+      comparator: row.querySelector('.logic-comparator').value,
+      value: row.querySelector('.logic-value').value.trim()
+    }))
+  }));
+  return logic;
+}
+function parseUtcOffsetToMinutes(raw){
+  const value = String(raw ?? '').trim().replace(/^UTC/i,'').trim();
+  if(!value) return 8 * 60;
+  const normalized = value.replace(/\s+/g, '');
+  const match = normalized.match(/^([+-]?)(\d{1,2})(?::?(\d{2}))?((?:\.\d+)?)?$/);
+  if(!match) throw new Error('UTC must be a valid offset like +8, -5, +5.5, or +05:30.');
+  const sign = match[1] === '-' ? -1 : 1;
+  const hours = Number(match[2] || 0);
+  const colonMinutes = match[3] ? Number(match[3]) : null;
+  const decimalPart = match[4] ? Number(match[4]) : null;
+  if(hours > 14) throw new Error('UTC offset hour must be between -14 and +14.');
+  let minutes = 0;
+  if(colonMinutes !== null && decimalPart !== null) throw new Error('Use either decimal UTC format or HH:MM format, not both together.');
+  if(colonMinutes !== null){
+    if(colonMinutes > 59) throw new Error('UTC offset minutes must be between 00 and 59.');
+    minutes = colonMinutes;
+  } else if(decimalPart !== null){
+    const decimalMinutes = Math.round(decimalPart * 60);
+    if(decimalMinutes % 15 !== 0) throw new Error('UTC decimal offsets must resolve to 15-minute steps, such as +5.5 or +5.75.');
+    minutes = decimalMinutes;
+  }
+  const total = sign * (hours * 60 + minutes);
+  if(total < -14 * 60 || total > 14 * 60) throw new Error('UTC offset must be between -14 and +14.');
+  return total;
+}
+function formatOffsetLabel(totalMinutes){
+  const sign = totalMinutes < 0 ? '-' : '+';
+  const abs = Math.abs(totalMinutes);
+  const hours = String(Math.floor(abs / 60));
+  const minutes = abs % 60;
+  if(minutes === 0) return `UTC${sign}${hours}`;
+  return `UTC${sign}${hours}:${String(minutes).padStart(2,'0')}`;
+}
+function formatHHMMDisplay(value){
+  const str = String(value ?? '').padStart(4,'0');
+  return `${str.slice(0,2)}:${str.slice(2,4)}`;
+}
+function convertLocalCronToUtcHHMM(localHHMM, utcOffsetMinutes){
+  const localValue = Number(localHHMM);
+  const str = String(localValue).padStart(4, '0');
+  const hour = Number(str.slice(0, 2));
+  const minute = Number(str.slice(2, 4));
+  if(!Number.isInteger(localValue) || localValue < 0 || localValue > 2359 || hour > 23 || minute > 59){
+    throw new Error('Cron task time must be a valid HHMM integer, for example 0900, 1500, or 2330.');
+  }
+  let totalMinutes = hour * 60 + minute - utcOffsetMinutes;
+  totalMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+  const utcHour = Math.floor(totalMinutes / 60);
+  const utcMinute = totalMinutes % 60;
+  return Number(`${String(utcHour).padStart(2,'0')}${String(utcMinute).padStart(2,'0')}`);
+}
+function convertUtcCronToLocalHHMM(utcHHMM, utcOffsetMinutes){
+  const utcValue = Number(utcHHMM);
+  const str = String(utcValue).padStart(4, '0');
+  const hour = Number(str.slice(0, 2));
+  const minute = Number(str.slice(2, 4));
+  if(!Number.isInteger(utcValue) || utcValue < 0 || utcValue > 2359 || hour > 23 || minute > 59){
+    throw new Error('Converted UTC cron task time must be a valid HHMM integer.');
+  }
+  let totalMinutes = hour * 60 + minute + utcOffsetMinutes;
+  totalMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+  const localHour = Math.floor(totalMinutes / 60);
+  const localMinute = totalMinutes % 60;
+  return Number(`${String(localHour).padStart(2,'0')}${String(localMinute).padStart(2,'0')}`);
+}
+
+function updateCronUtcPreview(){
+  const preview = document.getElementById('cronUtcPreview');
+  if(!preview) return;
+  const localValue = document.getElementById('cronTaskTime')?.value || '1500';
+  const utcRaw = document.getElementById('adminUtcOffset')?.value || '+8';
+  try{
+    const utcMinutes = parseUtcOffsetToMinutes(utcRaw);
+    const utcHHMM = convertLocalCronToUtcHHMM(localValue, utcMinutes);
+    preview.textContent = `Local ${formatHHMMDisplay(localValue)} at ${formatOffsetLabel(utcMinutes)} → stored as ${String(utcHHMM).padStart(4,'0')} in JSON.`;
+    preview.classList.remove('field-warning');
+  } catch(err){
+    preview.textContent = err.message;
+    preview.classList.add('field-warning');
+  }
+}
+
+function surveyCardToJson(card){
+  const isFollowup = card.dataset.followup === 'true';
+  if(isFollowup) normalizeFollowupCard(card);
+  const questions = Array.from(card.querySelectorAll('.questions-container > .question-card')).map(qCard => {
+    const type = qCard.querySelector('.question-type').value;
+    const question = {
+      id: qCard.querySelector('.question-id').value.trim(),
+      column_name: qCard.querySelector('.question-column').value.trim(),
+      type,
+      label: qCard.querySelector('.question-label').value.trim(),
+      required: qCard.querySelector('.question-required').checked
+    };
+    if(type === 'text' || type === 'numeric'){
+      const ph = qCard.querySelector('.question-placeholder').value.trim();
+      if(ph) question.placeholder = ph;
+    }
+    if(type === 'slider'){
+      question.slider_start = Number(qCard.querySelector('.slider-start').value || 0);
+      question.slider_end = Number(qCard.querySelector('.slider-end').value || 10);
+      question.slider_step = Number(qCard.querySelector('.slider-step').value || 1);
+    }
+    if(type === 'multiple_choice' || type === 'multiple_select'){
+      question.choices = Array.from(qCard.querySelectorAll('.choice-card')).map(cCard => ({
+        value: cCard.querySelector('.choice-value').value.trim(),
+        label: cCard.querySelector('.choice-label').value.trim()
+      })).filter(c => c.value || c.label);
+    }
+    const logic = logicPanelToJson(qCard);
+    if(logic.enabled) question.visibility_logic = logic;
+    return question;
+  }).filter(q => q.id || q.label || q.column_name);
+  return {
+    survey_id: card.querySelector('.survey-id').value.trim(),
+    version: Number(card.querySelector('.survey-version').value || 1),
+    title: card.querySelector('.survey-title').value.trim(),
+    invitation_text: card.querySelector('.survey-invitation-text').value.trim(),
+    link_slug: card.querySelector('.survey-link-slug').value.trim(),
+    table_name: card.querySelector('.survey-table-name').value.trim(),
+    ...(card.dataset.followup === 'true' ? {
+      trigger: {
+        send_frequency: Number(card.querySelector('.survey-send-frequency').value || 1),
+        reminder_interval: Number(card.querySelector('.survey-reminder-interval').value || 7),
+        time: Number(card.querySelector('.survey-trigger-time').value || 0)
+      }
+    } : {}),
+    questions
+  };
+}
+function buildConfigObject(){
+  const baselineCard = document.querySelector('#baselineContainer .survey-card');
+  const followups = Array.from(document.querySelectorAll('#followupContainer .survey-card')).map(surveyCardToJson);
+  return {
+    project: {
+      name: document.getElementById('projectName').value.trim(),
+      description: document.getElementById('projectDescription').value.trim(),
+      version: Number(document.getElementById('projectVersion').value || 1),
+      default_language: document.getElementById('defaultLanguage').value.trim() || 'en',
+      intervention_period: Number(document.getElementById('interventionPeriod').value || 0),
+      intervention_end_message: document.getElementById('interventionEndMessage').value.trim(),
+      verification_message: document.getElementById('verificationMessage').value.trim(),
+      consent_form_text: document.getElementById('consentFormText').value.trim(),
+      cron_task_time: convertLocalCronToUtcHHMM(document.getElementById('cronTaskTime').value || 1500, parseUtcOffsetToMinutes(document.getElementById('adminUtcOffset').value || '+8')),
+      chatbot_schedule_questions: {
+        once_per_one_week: getSelectedWeekdaysByClass('weekday-once-per-week'),
+        twice_per_one_week: getSelectedWeekdaysByClass('weekday-twice-per-week'),
+        once_per_two_weeks: getSelectedWeekdaysByClass('weekday-once-per-two-weeks')
+      },
+      translations: {
+        message_interval_label: document.getElementById('t_message_interval_label').value.trim(),
+        participant_name_label: document.getElementById('t_participant_name_label').value.trim(),
+        respondent_phone_label: document.getElementById('t_respondent_phone_label').value.trim(),
+        project_label: document.getElementById('t_project_label').value.trim(),
+        description_label: document.getElementById('t_description_label').value.trim(),
+        interval_once_per_one_week: document.getElementById('t_interval_once_per_one_week').value.trim(),
+        interval_twice_per_one_week: document.getElementById('t_interval_twice_per_one_week').value.trim(),
+        interval_once_per_two_weeks: document.getElementById('t_interval_once_per_two_weeks').value.trim(),
+        consent_form_label: document.getElementById('t_consent_form_label').value.trim(),
+        consent_agree_label: document.getElementById('t_consent_agree_label').value.trim()
+      },
+      phases: phasesToJson()
+    },
+    baseline: baselineCard ? surveyCardToJson(baselineCard) : JSON.parse(JSON.stringify(defaultBaseline)),
+    followups
+  };
+}
+
+function validateConfig(config){
+  clearFieldWarnings();
+  if(!config.baseline) throw new Error('Baseline questionnaire is required.');
+  if(!config.baseline.survey_id) throw new Error('Baseline survey_id is required.');
+  if(!config.baseline.table_name) throw new Error('Baseline table_name is required.');
+  const scheduleQuestions = config.project?.chatbot_schedule_questions || {};
+  const localCronTaskTime = Number(document.getElementById('cronTaskTime').value || 1500);
+  const cronTaskTime = Number(config.project?.cron_task_time ?? 1500);
+  const cronTaskTimeStr = String(cronTaskTime).padStart(4, '0');
+  const cronHour = Number(cronTaskTimeStr.slice(0, 2));
+  const cronMinute = Number(cronTaskTimeStr.slice(2, 4));
+  const localCronTaskTimeStr = String(localCronTaskTime).padStart(4, '0');
+  const localCronHour = Number(localCronTaskTimeStr.slice(0, 2));
+  const localCronMinute = Number(localCronTaskTimeStr.slice(2, 4));
+  parseUtcOffsetToMinutes(document.getElementById('adminUtcOffset').value || '+8');
+  if (!Number.isInteger(localCronTaskTime) || localCronTaskTime < 0 || localCronTaskTime > 2359 || localCronHour > 23 || localCronMinute > 59) {
+    throw new Error('Cron task time must be a valid HHMM integer, for example 0900, 1500, or 2330.');
+  }
+  if (!Number.isInteger(cronTaskTime) || cronTaskTime < 0 || cronTaskTime > 2359 || cronHour > 23 || cronMinute > 59) {
+    throw new Error('Converted UTC cron task time must be a valid HHMM integer.');
+  }
+  const phases = config.project?.phases || { enabled: false, items: [] };
+  if(phases.enabled){
+    if(!Array.isArray(phases.items) || phases.items.length === 0){
+      throw new Error('At least one phase is required when multi-phases project is enabled.');
+    }
+    phases.items.forEach((phase, idx) => {
+      if(!Number.isInteger(Number(phase.phase_id)) || Number(phase.phase_id) != idx + 1){
+        throw new Error(`Phase ID must follow order 1, 2, 3... Problem found at phase ${idx + 1}.`);
+      }
+      if(!Number.isInteger(Number(phase.start_date)) || Number(phase.start_date) < 0){
+        throw new Error(`Phase ${idx + 1} start_date must be an integer >= 0.`);
+      }
+      if(!Number.isInteger(Number(phase.length)) || Number(phase.length) < 1){
+        throw new Error(`Phase ${idx + 1} length must be an integer >= 1.`);
+      }
+      if(!String(phase.prompt || '').trim()){
+        throw new Error(`Phase ${idx + 1} prompt is required.`);
+      }
+    });
+  }
+  const oncePerWeek = scheduleQuestions.once_per_one_week || [];
+  const twicePerWeek = scheduleQuestions.twice_per_one_week || [];
+  const oncePerTwoWeeks = scheduleQuestions.once_per_two_weeks || [];
+  
+  
+  
+
+  const seenSurveyIds = new Map();
+  const seenTableNames = new Map();
+  const allCards = [ document.querySelector('#baselineContainer .survey-card'), ...Array.from(document.querySelectorAll('#followupContainer .survey-card')) ].filter(Boolean);
+  const allSurveys = [config.baseline, ...config.followups];
+
+  allSurveys.forEach((survey, idx) => {
+    const card = allCards[idx];
+    const surveyIdInput = card.querySelector('.survey-id');
+    const tableNameInput = card.querySelector('.survey-table-name');
+    if(!survey.survey_id) throw new Error('Every survey must have survey_id.');
+    if(card.dataset.followup === 'true' && !/^followup\d{3}$/.test(survey.survey_id)){ surveyIdInput.classList.add('field-warning'); throw new Error(`Follow-up survey_id must be in the format followup001: ${survey.survey_id || '(empty)'}`); }
+    if(seenSurveyIds.has(survey.survey_id)){ surveyIdInput.classList.add('field-warning'); const prevInput = seenSurveyIds.get(survey.survey_id); if(prevInput) prevInput.classList.add('field-warning'); throw new Error(`Duplicate survey_id: ${survey.survey_id}`); }
+    seenSurveyIds.set(survey.survey_id, surveyIdInput);
+
+    if(!survey.table_name){ tableNameInput.classList.add('field-warning'); throw new Error(`Survey ${survey.survey_id} is missing table_name.`); }
+    if(card.dataset.followup === 'true'){
+      const sendFrequency = Number(survey.trigger?.send_frequency ?? 0);
+      const reminderInterval = Number(survey.trigger?.reminder_interval ?? 0);
+      const triggerTime = Number(survey.trigger?.time ?? 0);
+      if(!Number.isInteger(sendFrequency) || sendFrequency < 1) throw new Error(`Survey ${survey.survey_id} must have trigger.send_frequency as an integer >= 1.`);
+      if(!Number.isInteger(reminderInterval) || reminderInterval < 1) throw new Error(`Survey ${survey.survey_id} must have trigger.reminder_interval as an integer >= 1.`);
+      if(!Number.isInteger(triggerTime) || triggerTime < 0) throw new Error(`Survey ${survey.survey_id} must have trigger.time as an integer >= 0.`);
+    }
+    if(seenTableNames.has(survey.table_name)){ tableNameInput.classList.add('field-warning'); const prevInput = seenTableNames.get(survey.table_name); if(prevInput) prevInput.classList.add('field-warning'); throw new Error(`Duplicate table_name found: ${survey.table_name}. Each survey table name must be unique.`); }
+    seenTableNames.set(survey.table_name, tableNameInput);
+
+    const seenColumns = new Map();
+    const questionCards = Array.from(card.querySelectorAll('.questions-container > .question-card'));
+    survey.questions.forEach((q, qIdx) => {
+      const qCard = questionCards[qIdx];
+      const idInput = qCard?.querySelector('.question-id');
+      const colInput = qCard?.querySelector('.question-column');
+      if(!q.id){ if(idInput) idInput.classList.add('field-warning'); throw new Error(`Survey ${survey.survey_id} has a question without id.`); }
+      if(!q.column_name){ if(colInput) colInput.classList.add('field-warning'); throw new Error(`Survey ${survey.survey_id}, question ${q.id} is missing column_name.`); }
+      if(seenColumns.has(q.column_name)){ if(colInput) colInput.classList.add('field-warning'); const prevCol = seenColumns.get(q.column_name); if(prevCol) prevCol.classList.add('field-warning'); throw new Error(`Duplicate column_name inside table ${survey.table_name}: ${q.column_name}. Column names must be unique within a table.`); }
+      seenColumns.set(q.column_name, colInput);
+      if((q.type === 'multiple_choice' || q.type === 'multiple_select') && (!q.choices || q.choices.length === 0)){ throw new Error(`Survey ${survey.survey_id}, question ${q.id} requires at least one choice.`); }
+      if(q.type === 'slider'){
+        const sliderStart = Number(q.slider_start);
+        const sliderEnd = Number(q.slider_end);
+        const sliderStep = Number(q.slider_step);
+        if(!Number.isFinite(sliderStart) || !Number.isFinite(sliderEnd) || !Number.isFinite(sliderStep)){
+          throw new Error(`Survey ${survey.survey_id}, question ${q.id} slider values must be valid numbers.`);
+        }
+        if(sliderEnd <= sliderStart){
+          throw new Error(`Survey ${survey.survey_id}, question ${q.id} slider end value must be greater than starting value.`);
+        }
+        if(sliderStep <= 0){
+          throw new Error(`Survey ${survey.survey_id}, question ${q.id} slider step must be greater than 0.`);
+        }
+      }
+
+      if(q.visibility_logic?.enabled){
+        if(!Array.isArray(q.visibility_logic.groups) || q.visibility_logic.groups.length === 0) throw new Error(`Survey ${survey.survey_id}, question ${q.id} has conditional logic enabled but no groups defined.`);
+        q.visibility_logic.groups.forEach((group, gIdx) => {
+          if(!Array.isArray(group.conditions) || group.conditions.length === 0) throw new Error(`Survey ${survey.survey_id}, question ${q.id}, group ${gIdx + 1} has no conditions.`);
+          group.conditions.forEach((cond, cIdx) => {
+            if(!cond.field) throw new Error(`Survey ${survey.survey_id}, question ${q.id}, group ${gIdx + 1}, condition ${cIdx + 1} is missing field.`);
+            if(!survey.questions.some(other => other.id === cond.field)) throw new Error(`Survey ${survey.survey_id}, question ${q.id}, group ${gIdx + 1}, condition ${cIdx + 1} references unknown field: ${cond.field}`);
+            if(cond.field === q.id) throw new Error(`Survey ${survey.survey_id}, question ${q.id} cannot reference itself in conditional logic.`);
+            if(!['is_answered','is_not_answered'].includes(cond.comparator) && !String(cond.value ?? '').trim()) throw new Error(`Survey ${survey.survey_id}, question ${q.id}, group ${gIdx + 1}, condition ${cIdx + 1} requires a value.`);
+          });
+        });
+      }
+    });
+  });
+}
+function generateConfig(){ try{ showWarning(''); const config = buildConfigObject(); validateConfig(config); document.getElementById('output').textContent = JSON.stringify(config, null, 2); } catch(err){ document.getElementById('output').textContent=''; showWarning(err.message); alert(err.message); } }
+function downloadConfig(){ if(!document.getElementById('output').textContent.trim()) generateConfig(); const text = document.getElementById('output').textContent.trim(); if(!text) return; const blob = new Blob([text], { type:'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'survey-config.json'; a.click(); URL.revokeObjectURL(url); }
+async function copyConfig(){ if(!document.getElementById('output').textContent.trim()) generateConfig(); const text = document.getElementById('output').textContent.trim(); if(!text) return; await navigator.clipboard.writeText(text); alert('JSON copied to clipboard.'); }
+function importConfig(){
+  const raw = document.getElementById('importInput').value.trim();
+  if(!raw){ alert('Please paste JSON first.'); return; }
+  try{
+    const cfg = JSON.parse(raw);
+    const baseline = cfg.baseline || defaultBaseline;
+    const followups = cfg.followups || [];
+    document.getElementById('projectName').value = cfg.project?.name || '';
+    document.getElementById('projectDescription').value = cfg.project?.description || '';
+    document.getElementById('projectVersion').value = cfg.project?.version || 1;
+    document.getElementById('defaultLanguage').value = cfg.project?.default_language || 'en';
+    document.getElementById('interventionPeriod').value = Number(cfg.project?.intervention_period ?? 0);
+    document.getElementById('interventionEndMessage').value = cfg.project?.intervention_end_message || '';
+    document.getElementById('verificationMessage').value = cfg.project?.verification_message || '';
+    document.getElementById('consentFormText').value = cfg.project?.consent_form_text || '';
+    const t = cfg.project?.translations || {};
+    document.getElementById('t_message_interval_label').value = t.message_interval_label || 'Message interval';
+    document.getElementById('t_participant_name_label').value = t.participant_name_label || 'Participant name';
+    document.getElementById('t_respondent_phone_label').value = t.respondent_phone_label || 'Your WhatsApp phone number (numbers only)';
+    document.getElementById('t_project_label').value = t.project_label || 'Project';
+    document.getElementById('t_description_label').value = t.description_label || 'Description';
+    document.getElementById('t_interval_once_per_one_week').value = t.interval_once_per_one_week || 'Interval once per one week';
+    document.getElementById('t_interval_twice_per_one_week').value = t.interval_twice_per_one_week || 'Interval twice per one week';
+    document.getElementById('t_interval_once_per_two_weeks').value = t.interval_once_per_two_weeks || 'Interval once per two weeks';
+    document.getElementById('t_consent_form_label').value = t.consent_form_label || 'Consent Form';
+    document.getElementById('t_consent_agree_label').value = t.consent_agree_label || 'I agree';
+    document.getElementById('adminUtcOffset').value = '+8';
+    document.getElementById('cronTaskTime').value = convertUtcCronToLocalHHMM(Number(cfg.project?.cron_task_time ?? 1500), parseUtcOffsetToMinutes(document.getElementById('adminUtcOffset').value || '+8'));
+    setSelectedWeekdaysByClass('weekday-once-per-week', cfg.project?.chatbot_schedule_questions?.once_per_one_week || []);
+    setSelectedWeekdaysByClass('weekday-twice-per-week', cfg.project?.chatbot_schedule_questions?.twice_per_one_week || []);
+    setSelectedWeekdaysByClass('weekday-once-per-two-weeks', cfg.project?.chatbot_schedule_questions?.once_per_two_weeks || []);
+    document.getElementById('isMultiPhases').checked = !!cfg.project?.phases?.enabled;
+    togglePhasesSection();
+    document.getElementById('phasesContainer').innerHTML = '';
+    (cfg.project?.phases?.items || []).forEach((phase) => addPhase(phase));
+    refreshAllWeekdayLimits();
+    updateGenerateButton();
+    updateCronUtcPreview();
+    document.getElementById('baselineContainer').innerHTML = '';
+    renderSurveyCard(baseline, document.getElementById('baselineContainer'), true);
+    document.getElementById('followupContainer').innerHTML = '';
+    followupIdCounter = 1;
+    (followups || []).forEach(f => {
+      addFollowupSurvey(f);
+      const match = String(f.survey_id).match(/^followup(\d{3})$/);
+      const numeric = match ? parseInt(match[1],10) : NaN;
+      if(!Number.isNaN(numeric) && numeric >= followupIdCounter) followupIdCounter = numeric + 1;
+    });
+    const preview = { project: cfg.project || {}, baseline, followups };
+    document.getElementById('output').textContent = JSON.stringify(preview, null, 2);
+    clearFieldWarnings(); showWarning('');
+    document.querySelectorAll('.survey-card').forEach(refreshLogicFieldOptions);
+    alert('JSON imported successfully.');
+  } catch(err){
+    showWarning('Invalid JSON format. ' + err.message);
+    alert('Invalid JSON format. ' + err.message);
+  }
+}
+
+function getSelectedWeekdaysByClass(className){
+  return Array.from(document.querySelectorAll('.' + className + ':checked')).map(cb => cb.value);
+}
+function setSelectedWeekdaysByClass(className, days){
+  const set = new Set(Array.isArray(days) ? days : []);
+  document.querySelectorAll('.' + className).forEach(cb => {
+    cb.disabled = false;
+    cb.checked = set.has(cb.value);
+  });
+}
+function limitWeekdaySelection(className, maxSelected){
+  const checkboxes = Array.from(document.querySelectorAll('.' + className));
+  const checked = checkboxes.filter(cb => cb.checked);
+  if(checked.length >= maxSelected){
+    checkboxes.forEach(cb => {
+      if(!cb.checked) cb.disabled = true;
+    });
+  } else {
+    checkboxes.forEach(cb => cb.disabled = false);
+  }
+}
+
+function createPhaseCard(phase = null, idx = 0){
+  const p = phase || { phase_id: idx + 1, start_date: 0, length: 1, prompt: '' };
+  const wrap = document.createElement('div');
+  wrap.className = 'phase-card';
+  wrap.innerHTML = `
+    <div class="card-header">
+      <div class="title">Phase ${idx + 1}</div>
+      <div class="mini-actions">
+        <button type="button" onclick="movePhase(this, -1)">↑ Move Up</button>
+        <button type="button" onclick="movePhase(this, 1)">↓ Move Down</button>
+        <button type="button" class="btn-danger" onclick="removePhase(this)">Remove Phase</button>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="col-2">
+        <label>Phase ID</label>
+        <input type="number" class="phase-id" value="${Number(p.phase_id || idx + 1)}" readonly />
+      </div>
+      <div class="col-3">
+        <label>Start date (days after baseline)</label>
+        <input type="number" class="phase-start-date" min="0" step="1" value="${Number(p.start_date || 0)}" />
+      </div>
+      <div class="col-3">
+        <label>Length (days)</label>
+        <input type="number" class="phase-length" min="1" step="1" value="${Number(p.length || 1)}" />
+      </div>
+      <div class="col-12">
+        <label>Prompt</label>
+        <textarea class="phase-prompt" placeholder="Text that will be sent to AI during this phase to generate AI response.">${esc(p.prompt || '')}</textarea>
+      </div>
+    </div>
+  `;
+  return wrap;
+}
+
+function togglePhasesSection(){
+  const enabled = document.getElementById('isMultiPhases').checked;
+  const section = document.getElementById('phasesSection');
+  section.style.display = enabled ? '' : 'none';
+}
+
+function addPhase(phaseData = null){
+  const container = document.getElementById('phasesContainer');
+  const idx = container.querySelectorAll('.phase-card').length;
+  container.appendChild(createPhaseCard(phaseData, idx));
+  refreshPhaseTitles();
+}
+
+function removePhase(btn){
+  const card = btn.closest('.phase-card');
+  if(card) card.remove();
+  refreshPhaseTitles();
+}
+
+function movePhase(btn, direction){
+  const card = btn.closest('.phase-card');
+  const container = card.parentElement;
+  if(direction < 0 && card.previousElementSibling){
+    container.insertBefore(card, card.previousElementSibling);
+  } else if(direction > 0 && card.nextElementSibling){
+    container.insertBefore(card.nextElementSibling, card);
+  }
+  refreshPhaseTitles();
+}
+
+function refreshPhaseTitles(){
+  const cards = Array.from(document.querySelectorAll('#phasesContainer .phase-card'));
+  cards.forEach((card, idx) => {
+    const title = card.querySelector('.card-header .title');
+    if(title) title.textContent = `Phase ${idx + 1}`;
+    const idInput = card.querySelector('.phase-id');
+    if(idInput) idInput.value = idx + 1;
+  });
+}
+
+function phasesToJson(){
+  const enabled = document.getElementById('isMultiPhases').checked;
+  if(!enabled) return { enabled: false, items: [] };
+  const items = Array.from(document.querySelectorAll('#phasesContainer .phase-card')).map((card, idx) => ({
+    phase_id: idx + 1,
+    start_date: Number(card.querySelector('.phase-start-date').value || 0),
+    length: Number(card.querySelector('.phase-length').value || 1),
+    prompt: card.querySelector('.phase-prompt').value.trim()
+  }));
+  return { enabled: true, items };
+}
+
+function refreshAllWeekdayLimits(){
+  limitWeekdaySelection('weekday-once-per-week', 1);
+  limitWeekdaySelection('weekday-twice-per-week', 2);
+  limitWeekdaySelection('weekday-once-per-two-weeks', 1);
+}
+
+refreshAllWeekdayLimits();
+togglePhasesSection();
+buildBaseline();
+updateCronUtcPreview();
+document.getElementById('cronTaskTime').addEventListener('input', updateCronUtcPreview);
+document.getElementById('adminUtcOffset').addEventListener('input', updateCronUtcPreview);
+generateConfig();
+
+function isScheduleValid(){
+  const oncePerWeek = getSelectedWeekdaysByClass('weekday-once-per-week');
+  const twicePerWeek = getSelectedWeekdaysByClass('weekday-twice-per-week');
+  const oncePerTwoWeeks = getSelectedWeekdaysByClass('weekday-once-per-two-weeks');
+  return (oncePerWeek.length === 1 && twicePerWeek.length === 2 && oncePerTwoWeeks.length === 1);
+}
+
+function updateGenerateButton(){
+  const btn = document.getElementById('generateBtn');
+  const reminder = document.getElementById('scheduleReminder');
+  if(!btn) return;
+  const valid = isScheduleValid();
+  btn.disabled = !valid;
+  if(valid){
+    btn.classList.remove('btn-disabled-custom');
+    if(reminder) reminder.style.display = 'none';
+  } else {
+    btn.classList.add('btn-disabled-custom');
+    if(reminder) reminder.style.display = 'block';
+  }
+}
+
+document.querySelectorAll('.weekday-once-per-week, .weekday-twice-per-week, .weekday-once-per-two-weeks').forEach(cb=>{
+  cb.addEventListener('change', updateGenerateButton);
+});
+
+setTimeout(updateGenerateButton, 100);
+
+</script>
+</body>
+</html>

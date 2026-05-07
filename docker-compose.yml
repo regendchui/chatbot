@@ -1,0 +1,34 @@
+services: # Define all services for this stack.
+  postgres: # PostgreSQL service used by app and whatsmeow session store.
+    image: postgres:15 # Use official PostgreSQL 15 image.
+    container_name: wa_postgres # Set deterministic container name.
+    restart: always # Always restart container if it crashes/stops unexpectedly.
+    environment: # Define PostgreSQL bootstrap settings.
+      POSTGRES_USER: wa_user # Initial DB username.
+      POSTGRES_PASSWORD: K9mT2qL8vR4xP7sN # Initial DB password.
+      POSTGRES_DB: wa_db # Initial database name.
+    ports:
+      - "5432:5432" # Expose DB to host (optional, useful for debugging/admin tools).
+    volumes:
+      - pgdata:/var/lib/postgresql/data # Persist database data across container restarts.
+    healthcheck: # Wait for DB readiness before bot startup.
+      test: ["CMD-SHELL", "pg_isready -U wa_user -d wa_db"] # Health command.
+      interval: 5s # Interval between health checks.
+      timeout: 5s # Timeout for each health check attempt.
+      retries: 20 # Max retries before marking container unhealthy.
+
+  bot: # WhatsApp bot service.
+    build: . # Build image from current folder using Dockerfile.
+    container_name: wa_bot # Set deterministic bot container name.
+    ports:
+      - "8080:8080" # Expose survey HTTP server (SURVEY_HTTP_ADDR default :8080).
+      - "8081:8081" # Expose admin panel HTTP server (ADMIN_PANEL_HTTP_ADDR default :8081).
+    depends_on: # Ensure DB starts before bot.
+      postgres:
+        condition: service_healthy # Start bot only after DB healthcheck is healthy.
+    env_file:
+      - .env # Load runtime environment variables from .env file.
+    restart: always # Restart bot automatically on crash.
+
+volumes: # Define named docker volumes.
+  pgdata: # Named volume for PostgreSQL persistent storage.
