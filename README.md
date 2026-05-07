@@ -4,6 +4,8 @@ Go application that pairs with WhatsApp via [whatsmeow](https://github.com/tulir
 
 The project is intended to run with **Docker Compose** (app + database). Survey definitions and most tunable settings are loaded from the filesystem on **first** startup, then **persisted and edited** through the `project_setting` table and the admin **Configuration** page.
 
+Link for JSON Configurator: https://regendchui.github.io/chatbot-JSON-configurator/
+
 ## Feature highlights
 
 This application is designed as a production-oriented WhatsApp intervention platform with configurable workflows, document-grounded AI responses, and an operational admin console.
@@ -249,6 +251,8 @@ Do this before you deploy to the VPS so first boot seeds the correct values.
 ### B) Edit survey JSON (`survey-config.json`)
 
 The base JSON should come from the repository README workflow/template (the tracked `survey-config.json`, or one generated from `survey_configurator.html` and then saved as `survey-config.json`).
+
+Link for JSON Configurator: https://regendchui.github.io/chatbot-JSON-configurator/
 
 Keep the file path aligned with:
 - `SURVEY_CONFIG_PATH=survey-config.json`
