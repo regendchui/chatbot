@@ -46,6 +46,9 @@ const (
 	defaultCollectiveResponseDelaySec = 3
 	defaultMessageSliceEnabled        = false
 	defaultMessageSliceDelaySeconds   = 1
+	defaultIntervalOncePerOneWeek     = true
+	defaultIntervalTwicePerOneWeek    = true
+	defaultIntervalOncePerTwoWeek     = true
 )
 
 type projectSettingRow struct {
@@ -281,6 +284,9 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"DELAY_COLLECTIVE_RESPONSE_SECONDS":   nonEmptyOrDefault(strings.TrimSpace(os.Getenv("DELAY_COLLECTIVE_RESPONSE_SECONDS")), strconv.Itoa(defaultCollectiveResponseDelaySec)),
 		"MESSAGE_SLICE_ENABLED":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_SLICE_ENABLED")), boolString(defaultMessageSliceEnabled)),
 		"MESSAGE_SLICE_DELAY_SECONDS":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_SLICE_DELAY_SECONDS")), strconv.Itoa(defaultMessageSliceDelaySeconds)),
+		"MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK":  nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK")), boolString(defaultIntervalOncePerOneWeek)),
+		"MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK")), boolString(defaultIntervalTwicePerOneWeek)),
+		"MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK":  nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK")), boolString(defaultIntervalOncePerTwoWeek)),
 	}
 	defaultPassword := nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_PASSWORD")), defaultAdminPanelPassword)
 	encryptedPassword, err := encryptAdminPanelPassword(defaultPassword)
