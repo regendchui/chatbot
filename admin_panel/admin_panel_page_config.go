@@ -61,6 +61,14 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<p><label>DELAY_COLLECTIVE_RESPONSE_SECONDS<br><input type="number" min="0" step="1" inputmode="numeric" name="DELAY_COLLECTIVE_RESPONSE_SECONDS" value="` + html.EscapeString(envVars["DELAY_COLLECTIVE_RESPONSE_SECONDS"]) + `" required></label></p>`)
 	b.WriteString(`<p>MESSAGE_SLICE_ENABLED<br>` + adminBoolRadioGroup("MESSAGE_SLICE_ENABLED", envVars["MESSAGE_SLICE_ENABLED"]) + `</p>`)
 	b.WriteString(`<p><label>MESSAGE_SLICE_DELAY_SECONDS (>=0)<br><input type="number" min="0" step="1" inputmode="numeric" name="MESSAGE_SLICE_DELAY_SECONDS" value="` + html.EscapeString(envVars["MESSAGE_SLICE_DELAY_SECONDS"]) + `" required></label></p>`)
+	b.WriteString(`<p><strong>Baseline message interval options</strong><br>`)
+	b.WriteString(adminBoolCheckbox("MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK", db.GetProjectSettingBool("MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK", true), "once per one week"))
+	b.WriteString(`<br>`)
+	b.WriteString(adminBoolCheckbox("MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK", db.GetProjectSettingBool("MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK", true), "twice per one week"))
+	b.WriteString(`<br>`)
+	b.WriteString(adminBoolCheckbox("MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK", db.GetProjectSettingBool("MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK", true), "once per two week"))
+	b.WriteString(`</p>`)
+	b.WriteString(`<p style="font-size:13px;color:#64748b;">At least one interval must be selected before saving.</p>`)
 	b.WriteString(`<p><button type="submit">Save behavior settings</button></p>`)
 	b.WriteString(`</form>`)
 
@@ -143,6 +151,14 @@ func adminBoolRadioGroup(name string, currentValue string) string {
 		`<label><input type="radio" name="` + html.EscapeString(name) + `" value="false"` + falseChecked + `> false</label>`
 }
 
+func adminBoolCheckbox(name string, checked bool, label string) string {
+	checkedAttr := ""
+	if checked {
+		checkedAttr = ` checked`
+	}
+	return `<label><input type="checkbox" name="` + html.EscapeString(name) + `" value="true"` + checkedAttr + `> ` + html.EscapeString(label) + `</label>`
+}
+
 func adminConfigurationUpdateAIHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -212,6 +228,13 @@ func adminConfigurationUpdateBehaviorHandler(w http.ResponseWriter, r *http.Requ
 		adminConfigRedirect(w, r, "ADMIN_PANEL_UTC_OFFSET_HOURS must be an integer between -12 and +14.")
 		return
 	}
+	intervalOncePerOneWeek := strings.TrimSpace(r.FormValue("MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK")) == "true"
+	intervalTwicePerOneWeek := strings.TrimSpace(r.FormValue("MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK")) == "true"
+	intervalOncePerTwoWeek := strings.TrimSpace(r.FormValue("MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK")) == "true"
+	if !intervalOncePerOneWeek && !intervalTwicePerOneWeek && !intervalOncePerTwoWeek {
+		adminConfigRedirect(w, r, "At least one baseline message interval option must be selected.")
+		return
+	}
 	if err := db.UpdateProjectEnvVariables(map[string]string{
 		"SEND_AI_ERROR_FALLBACK":              strings.TrimSpace(r.FormValue("SEND_AI_ERROR_FALLBACK")),
 		"REQUIRE_VERIFICATION":                strings.TrimSpace(r.FormValue("REQUIRE_VERIFICATION")),
@@ -222,6 +245,9 @@ func adminConfigurationUpdateBehaviorHandler(w http.ResponseWriter, r *http.Requ
 		"DELAY_COLLECTIVE_RESPONSE_SECONDS":   collectiveDelay,
 		"MESSAGE_SLICE_ENABLED":               strings.TrimSpace(r.FormValue("MESSAGE_SLICE_ENABLED")),
 		"MESSAGE_SLICE_DELAY_SECONDS":         messageSliceDelaySeconds,
+		"MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK":  strconv.FormatBool(intervalOncePerOneWeek),
+		"MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK": strconv.FormatBool(intervalTwicePerOneWeek),
+		"MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK":  strconv.FormatBool(intervalOncePerTwoWeek),
 	}); err != nil {
 		adminConfigRedirect(w, r, "Failed to save behavior settings.")
 		return
