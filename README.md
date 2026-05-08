@@ -250,6 +250,8 @@ Do this before you deploy to the VPS so first boot seeds the correct values.
    - `SURVEY_PUBLIC_BASE_URL=https://yourdomain.com`
    - `ADMIN_PANEL_COOKIE_SECURE=true` (when using HTTPS)
 
+4. Please update the docker-compse.yml file if you change the DB_PASSWORD. Please make sure the setting of the yml file matches the setting in the .env file
+
 ### B) Edit survey JSON (`survey-config.json`)
 
 The base JSON should come from the repository README workflow/template (the tracked `survey-config.json`, or one generated from `survey_configurator.html` and then saved as `survey-config.json`).
