@@ -191,12 +191,61 @@ func BaselineQuestionsWithSystemFields(questions []SurveyQuestion) []SurveyQuest
 		}
 		remaining = append(remaining, q)
 	}
+	intervalQuestion.Choices = filterEnabledMessageIntervalChoices(intervalQuestion.Choices)
+	if len(intervalQuestion.Choices) == 0 {
+		// Defensive fallback for bad persisted settings; admin UI prevents this.
+		intervalQuestion.Choices = defaultInterval.Choices
+	}
 
 	out := make([]SurveyQuestion, 0, len(remaining)+2)
 	out = append(out, nameQuestion)
 	out = append(out, intervalQuestion)
 	out = append(out, remaining...)
 	return out
+}
+
+func filterEnabledMessageIntervalChoices(in []SurveyChoice) []SurveyChoice {
+	oncePerOneWeek := db.GetProjectSettingBool("MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK", true)
+	twicePerOneWeek := db.GetProjectSettingBool("MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK", true)
+	oncePerTwoWeek := db.GetProjectSettingBool("MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK", true)
+	out := make([]SurveyChoice, 0, len(in))
+	for _, ch := range in {
+		switch normalizeMessageInterval(ch.Value) {
+		case "once_per_one_week":
+			if oncePerOneWeek {
+				out = append(out, ch)
+			}
+		case "twice_per_one_week":
+			if twicePerOneWeek {
+				out = append(out, ch)
+			}
+		case "once_per_two_weeks", "once_per_two_week":
+			if oncePerTwoWeek {
+				out = append(out, ch)
+			}
+		default:
+			// Keep unknown/custom choices as-is.
+			out = append(out, ch)
+		}
+	}
+	return out
+}
+
+func normalizeMessageInterval(v string) string {
+	s := strings.ToLower(strings.TrimSpace(v))
+	s = strings.ReplaceAll(s, "-", " ")
+	s = strings.ReplaceAll(s, "_", " ")
+	s = strings.Join(strings.Fields(s), " ")
+	switch s {
+	case "once per one week", "once per week":
+		return "once_per_one_week"
+	case "twice per one week", "twice per week":
+		return "twice_per_one_week"
+	case "once per two weeks", "once every two weeks", "once per two week":
+		return "once_per_two_weeks"
+	default:
+		return s
+	}
 }
 
 // LoadSurveyConfig reads and parses survey-config.json from path.
