@@ -30,9 +30,10 @@ type adminClientMetaSummary struct {
 }
 
 type adminClientListItem struct {
-	Phone        string
-	BaselineDone bool
-	Verified     bool
+	Phone           string
+	BaselineDone    bool
+	Verified        bool
+	ParticipantName string // from meta; set at baseline completion
 }
 
 type adminConversationEntry struct {
@@ -136,7 +137,7 @@ func adminClientInfoHandler(w http.ResponseWriter, r *http.Request) {
 				box += `border-color:#2563eb;background:#eff6ff;`
 			}
 			b.WriteString(`<a href="` + html.EscapeString(rawHref) + `" style="` + box + `">`)
-			b.WriteString(`<div style="font-weight:600;line-height:1.3;">` + html.EscapeString(item.Phone) + `</div>`)
+			b.WriteString(`<div style="font-weight:600;line-height:1.3;">` + html.EscapeString(item.Phone) + ` ` + html.EscapeString(adminClientInfoParticipantParen(item)) + `</div>`)
 			b.WriteString(`<div style="margin-top:4px;font-size:13px;color:#475569;line-height:1.35;">` + line2 + `</div>`)
 			b.WriteString(`</a>`)
 		}
@@ -145,7 +146,7 @@ func adminClientInfoHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`</div>`)
 
 	b.WriteString(`<div style="border:1px solid #c9c9c9;padding:12px;flex:1;display:flex;flex-direction:column;height:560px;">`)
-	b.WriteString(`<div><strong>Participant Chat History</strong></div>`)
+	b.WriteString(`<div><strong>` + html.EscapeString(adminClientInfoChatHistoryHeading(summary)) + `</strong></div>`)
 	b.WriteString(`<div style="margin-top:10px;flex:1;overflow-y:scroll;overflow-x:auto;border:1px solid #e1e1e1;padding:10px;background:#efeae2;">`)
 	if selected == "" {
 		b.WriteString(`<p>Select a participant to view chat history.</p>`)
@@ -267,8 +268,30 @@ func adminClientInfoRedirectQuery(phoneFilter, baselineFilter, verifiedFilter, p
 	return v
 }
 
+func adminClientInfoParticipantParen(item adminClientListItem) string {
+	if !item.BaselineDone {
+		return "(N/A)"
+	}
+	n := strings.TrimSpace(item.ParticipantName)
+	if n == "" {
+		return "(N/A)"
+	}
+	return "(" + n + ")"
+}
+
+func adminClientInfoChatHistoryHeading(summary adminClientMetaSummary) string {
+	if !summary.BaselineDone {
+		return "N/A"
+	}
+	n := strings.TrimSpace(summary.ParticipantName)
+	if n == "" {
+		return "N/A"
+	}
+	return n
+}
+
 func adminLoadClientParticipants(phoneFilter, baselineFilter, verifiedFilter string) ([]adminClientListItem, error) {
-	rows, err := db.DB.Query(context.Background(), `SELECT participant_phone, has_baseline_questionnaire, verification FROM meta ORDER BY id DESC LIMIT 2000`)
+	rows, err := db.DB.Query(context.Background(), `SELECT participant_phone, has_baseline_questionnaire, verification, participant_name FROM meta ORDER BY id DESC LIMIT 2000`)
 	if err != nil {
 		return nil, fmt.Errorf("query participants from meta: %w", err)
 	}
@@ -278,8 +301,13 @@ func adminLoadClientParticipants(phoneFilter, baselineFilter, verifiedFilter str
 		var encPhone string
 		var baselineDone bool
 		var verified bool
-		if err := rows.Scan(&encPhone, &baselineDone, &verified); err != nil {
+		var participantName *string
+		if err := rows.Scan(&encPhone, &baselineDone, &verified, &participantName); err != nil {
 			return nil, fmt.Errorf("scan participants from meta: %w", err)
+		}
+		nameStr := ""
+		if participantName != nil {
+			nameStr = strings.TrimSpace(*participantName)
 		}
 		plain, err := common.DecryptPhone(encPhone)
 		if err != nil {
@@ -295,13 +323,17 @@ func adminLoadClientParticipants(phoneFilter, baselineFilter, verifiedFilter str
 		if existing, ok := seen[phone]; ok {
 			existing.BaselineDone = existing.BaselineDone || baselineDone
 			existing.Verified = existing.Verified || verified
+			if strings.TrimSpace(existing.ParticipantName) == "" && nameStr != "" {
+				existing.ParticipantName = nameStr
+			}
 			seen[phone] = existing
 			continue
 		}
 		seen[phone] = adminClientListItem{
-			Phone:        phone,
-			BaselineDone: baselineDone,
-			Verified:     verified,
+			Phone:           phone,
+			BaselineDone:    baselineDone,
+			Verified:        verified,
+			ParticipantName: nameStr,
 		}
 	}
 	if err := rows.Err(); err != nil {
