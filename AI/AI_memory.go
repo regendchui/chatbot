@@ -31,19 +31,43 @@ func GetAIMemoryMessageLimitFromEnv() int {
 	return n
 }
 
-func GetLastMessages(limit int) ([]common.Message, error) { // Load last N messages and return them as AI memory context.
+func GetLastMessages(limit int) ([]common.Message, error) { // Backward-compatible global memory accessor.
+	return GetLastMessagesForParticipant("", limit)
+}
+
+// GetLastMessagesForParticipant loads last N messages for one participant phone when provided.
+// If participantPhone is empty, it falls back to global memory (all participants).
+func GetLastMessagesForParticipant(participantPhone string, limit int) ([]common.Message, error) {
 	if limit <= 0 { // Validate caller-provided memory size.
 		limit = defaultAIMemoryMessageLimit // Default message window when caller passes invalid value.
 	}
+	phoneDigits := common.DigitsOnly(strings.TrimSpace(participantPhone))
 
 	// Newest rows first; LIMIT applied in SQL.
 	query := `
 SELECT id, sender, receiver, content, direction, nature, to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF')
-FROM conversation
+FROM conversation`
+	args := []interface{}{}
+	if phoneDigits != "" {
+		encryptedParticipantPhone, err := common.EncryptPhone(phoneDigits)
+		if err != nil {
+			return nil, fmt.Errorf("encrypt participant phone for memory query: %w", err)
+		}
+		query += `
+WHERE participant_phone = $1`
+		args = append(args, encryptedParticipantPhone)
+		query += `
+ORDER BY created_at DESC
+LIMIT $2`
+		args = append(args, limit)
+	} else {
+		query += `
 ORDER BY created_at DESC
 LIMIT $1`
+		args = append(args, limit)
+	}
 
-	rows, err := db.DB.Query(context.Background(), query, limit) // Execute memory query against PostgreSQL.
+	rows, err := db.DB.Query(context.Background(), query, args...) // Execute memory query against PostgreSQL.
 	if err != nil {                                              // Check query execution errors.
 		return nil, fmt.Errorf("query last messages: %w", err) // Return wrapped query error.
 	}
