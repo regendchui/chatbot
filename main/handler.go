@@ -258,7 +258,7 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 } // End handleIncomingMessage function.
 
 func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, senderPhone string, prompt string) {
-	memoryMessages, err := ai.GetLastMessages(ai.GetAIMemoryMessageLimitFromEnv()) // Load last N DB messages (configurable via env) as AI memory.
+	memoryMessages, err := ai.GetLastMessagesForParticipant(senderPhone, ai.GetAIMemoryMessageLimitFromEnv()) // Load participant-scoped chat memory for AI.
 	if err != nil {                                                                // Check memory loading failure.
 		log.Println("Memory load error:", err) // Log error and continue with minimal context.
 		memoryMessages = []common.Message{}    // Use empty memory fallback when query fails.
