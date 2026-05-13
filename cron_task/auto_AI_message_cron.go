@@ -173,7 +173,7 @@ func composeAutoAIMessageWithContext(participantPhone string) (string, error) {
 		return "", fmt.Errorf("participant phone is empty")
 	}
 
-	memoryMessages, err := ai.GetLastMessages(ai.GetAIMemoryMessageLimitFromEnv())
+	memoryMessages, err := ai.GetLastMessagesForParticipant(phone, ai.GetAIMemoryMessageLimitFromEnv())
 	if err != nil {
 		return "", fmt.Errorf("load chat memory: %w", err)
 	}
