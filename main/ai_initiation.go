@@ -20,7 +20,7 @@ func sendInitialAIMessageToParticipant(client *whatsmeow.Client, participantPhon
 		return fmt.Errorf("participant phone is empty")
 	}
 
-	memoryMessages, err := ai.GetLastMessages(ai.GetAIMemoryMessageLimitFromEnv())
+	memoryMessages, err := ai.GetLastMessagesForParticipant(phone, ai.GetAIMemoryMessageLimitFromEnv())
 	if err != nil {
 		return fmt.Errorf("load chat memory: %w", err)
 	}
@@ -45,4 +45,3 @@ func sendPostBaselineMessage(client *whatsmeow.Client, participantPhone string) 
 	}
 	return sendInitialAIMessageToParticipant(client, participantPhone)
 }
-
