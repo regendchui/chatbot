@@ -375,7 +375,7 @@ server {
     listen 80;
     listen [::]:80;
 
-    server_name hku-youth-typology.cloud www.hku-youth-typology.cloud;
+    server_name yourdomain.com www.yourdomain.com;
 
     return 301 https://$host$request_uri;
 }
