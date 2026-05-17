@@ -165,7 +165,7 @@ func adminClientInfoHandler(w http.ResponseWriter, r *http.Request) {
 			b.WriteString(`<div style="display:flex;justify-content:` + align + `;margin:7px 0;">`)
 			b.WriteString(`<div style="max-width:78%;background:` + bg + `;border:1px solid #d6d6d6;border-radius:10px;padding:8px 10px;box-shadow:0 1px 1px rgba(0,0,0,0.06);">`)
 			b.WriteString(`<div style="white-space:normal;word-break:break-word;">` + messageText + `</div>`)
-			b.WriteString(`<div style="margin-top:4px;font-size:12px;color:#5f6368;text-align:right;">` + html.EscapeString(adminFormatTime(row.Time)) + `</div>`)
+			b.WriteString(`<div style="margin-top:4px;font-size:12px;color:#5f6368;text-align:right;">` + adminClientInfoBubbleTimestamp(row) + `</div>`)
 			b.WriteString(`</div>`)
 			b.WriteString(`</div>`)
 		}
@@ -513,6 +513,14 @@ func normalizePhoneDisplay(s string) string {
 		return digits
 	}
 	return strings.TrimSpace(s)
+}
+
+func adminClientInfoBubbleTimestamp(row adminConversationEntry) string {
+	ts := html.EscapeString(adminFormatTime(row.Time))
+	if strings.EqualFold(strings.TrimSpace(row.Nature), common.MessageNatureVoiceMessage) {
+		ts += ` <span style="font-weight:600;">voice</span>`
+	}
+	return ts
 }
 
 func adminClientInfoStatusEmoji(done bool) string {
