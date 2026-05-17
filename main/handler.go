@@ -1,6 +1,7 @@
 package main // Use main package so handler can call shared app functions directly.
 
 import ( // Import packages required for receive/handle logic.
+	"errors"
 	"fmt" // Print incoming message details for debugging.
 	"log" // Log non-fatal send failures.
 	"strconv"
@@ -145,6 +146,9 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 		voiceText, voiceOK, voiceErr := processIncomingVoiceMessage(client, msg)
 		if voiceErr != nil {
 			log.Println("Voice message processing error:", voiceErr)
+			if voiceOK && errors.Is(voiceErr, ErrVoiceMessageNoSpeech) {
+				handleUnintelligibleVoiceMessage(client, msg)
+			}
 			return
 		}
 		if !voiceOK {

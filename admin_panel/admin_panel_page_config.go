@@ -55,6 +55,7 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<p>VOICE_MESSAGE_ENABLED<br>` + adminBoolRadioGroup("VOICE_MESSAGE_ENABLED", envVars["VOICE_MESSAGE_ENABLED"]) + `</p>`)
 	b.WriteString(`<p><label>VOICE_MESSAGE_MODEL (OpenRouter STT model, e.g. openai/whisper-1)<br><input name="VOICE_MESSAGE_MODEL" value="` + html.EscapeString(envVars["VOICE_MESSAGE_MODEL"]) + `" style="width:100%;max-width:520px;" required></label></p>`)
 	b.WriteString(`<p><label>VOICE_MESSAGE_TRANSCRIPTION_URL<br><input name="VOICE_MESSAGE_TRANSCRIPTION_URL" value="` + html.EscapeString(envVars["VOICE_MESSAGE_TRANSCRIPTION_URL"]) + `" style="width:100%;max-width:720px;" required></label></p>`)
+	b.WriteString(`<p><label>VOICE_MESSAGE_UNINTELLIGIBLE_REPLY (sent when a voice note has no usable speech)<br><textarea name="VOICE_MESSAGE_UNINTELLIGIBLE_REPLY" rows="3" cols="120" required>` + html.EscapeString(envVars["VOICE_MESSAGE_UNINTELLIGIBLE_REPLY"]) + `</textarea></label></p>`)
 	b.WriteString(`<p><button type="submit">Save voice message settings</button></p>`)
 	b.WriteString(`</form>`)
 
@@ -217,15 +218,21 @@ func adminConfigurationUpdateVoiceHandler(w http.ResponseWriter, r *http.Request
 		adminConfigRedirect(w, r, "VOICE_MESSAGE_TRANSCRIPTION_URL is required.")
 		return
 	}
+	unintelligibleReply := strings.TrimSpace(r.FormValue("VOICE_MESSAGE_UNINTELLIGIBLE_REPLY"))
+	if unintelligibleReply == "" {
+		adminConfigRedirect(w, r, "VOICE_MESSAGE_UNINTELLIGIBLE_REPLY is required.")
+		return
+	}
 	if err := db.UpdateProjectEnvVariables(map[string]string{
-		"VOICE_MESSAGE_ENABLED":           strings.TrimSpace(r.FormValue("VOICE_MESSAGE_ENABLED")),
-		"VOICE_MESSAGE_MODEL":             voiceModel,
-		"VOICE_MESSAGE_TRANSCRIPTION_URL": transcriptionURL,
+		"VOICE_MESSAGE_ENABLED":              strings.TrimSpace(r.FormValue("VOICE_MESSAGE_ENABLED")),
+		"VOICE_MESSAGE_MODEL":                voiceModel,
+		"VOICE_MESSAGE_TRANSCRIPTION_URL":    transcriptionURL,
+		"VOICE_MESSAGE_UNINTELLIGIBLE_REPLY": unintelligibleReply,
 	}); err != nil {
 		adminConfigRedirect(w, r, "Failed to save voice message settings.")
 		return
 	}
-	adminRecordConfigUpdateHistory(r, "update_voice_message_settings", "Updated VOICE_MESSAGE_ENABLED, VOICE_MESSAGE_MODEL, and VOICE_MESSAGE_TRANSCRIPTION_URL")
+	adminRecordConfigUpdateHistory(r, "update_voice_message_settings", "Updated voice message settings including VOICE_MESSAGE_UNINTELLIGIBLE_REPLY")
 	adminConfigRedirect(w, r, "Voice message settings updated.")
 }
 
