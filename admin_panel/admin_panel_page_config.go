@@ -50,6 +50,14 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<p><button type="submit">Save AI settings</button></p>`)
 	b.WriteString(`</form>`)
 
+	b.WriteString(`<h3>Voice Message Settings</h3>`)
+	b.WriteString(`<form method="post" action="/admin/configuration/update/voice-message">`)
+	b.WriteString(`<p>VOICE_MESSAGE_ENABLED<br>` + adminBoolRadioGroup("VOICE_MESSAGE_ENABLED", envVars["VOICE_MESSAGE_ENABLED"]) + `</p>`)
+	b.WriteString(`<p><label>VOICE_MESSAGE_MODEL (OpenRouter STT model, e.g. openai/whisper-1)<br><input name="VOICE_MESSAGE_MODEL" value="` + html.EscapeString(envVars["VOICE_MESSAGE_MODEL"]) + `" style="width:100%;max-width:520px;" required></label></p>`)
+	b.WriteString(`<p><label>VOICE_MESSAGE_TRANSCRIPTION_URL<br><input name="VOICE_MESSAGE_TRANSCRIPTION_URL" value="` + html.EscapeString(envVars["VOICE_MESSAGE_TRANSCRIPTION_URL"]) + `" style="width:100%;max-width:720px;" required></label></p>`)
+	b.WriteString(`<p><button type="submit">Save voice message settings</button></p>`)
+	b.WriteString(`</form>`)
+
 	b.WriteString(`<h3>Behavior Settings</h3>`)
 	b.WriteString(`<form method="post" action="/admin/configuration/update/behavior">`)
 	b.WriteString(`<p>SEND_AI_ERROR_FALLBACK<br>` + adminBoolRadioGroup("SEND_AI_ERROR_FALLBACK", envVars["SEND_AI_ERROR_FALLBACK"]) + `</p>`)
@@ -188,6 +196,37 @@ func adminConfigurationUpdateAIHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	adminRecordConfigUpdateHistory(r, "update_ai_settings", "Updated AI_SYSTEM_PROMPT, AI_MEMORY_MESSAGE_LIMIT, and OPENROUTER_MODEL")
 	adminConfigRedirect(w, r, "AI settings updated.")
+}
+
+func adminConfigurationUpdateVoiceHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		adminConfigRedirect(w, r, "Invalid form data.")
+		return
+	}
+	voiceModel := strings.TrimSpace(r.FormValue("VOICE_MESSAGE_MODEL"))
+	if voiceModel == "" {
+		adminConfigRedirect(w, r, "VOICE_MESSAGE_MODEL is required.")
+		return
+	}
+	transcriptionURL := strings.TrimSpace(r.FormValue("VOICE_MESSAGE_TRANSCRIPTION_URL"))
+	if transcriptionURL == "" {
+		adminConfigRedirect(w, r, "VOICE_MESSAGE_TRANSCRIPTION_URL is required.")
+		return
+	}
+	if err := db.UpdateProjectEnvVariables(map[string]string{
+		"VOICE_MESSAGE_ENABLED":           strings.TrimSpace(r.FormValue("VOICE_MESSAGE_ENABLED")),
+		"VOICE_MESSAGE_MODEL":             voiceModel,
+		"VOICE_MESSAGE_TRANSCRIPTION_URL": transcriptionURL,
+	}); err != nil {
+		adminConfigRedirect(w, r, "Failed to save voice message settings.")
+		return
+	}
+	adminRecordConfigUpdateHistory(r, "update_voice_message_settings", "Updated VOICE_MESSAGE_ENABLED, VOICE_MESSAGE_MODEL, and VOICE_MESSAGE_TRANSCRIPTION_URL")
+	adminConfigRedirect(w, r, "Voice message settings updated.")
 }
 
 func adminConfigurationUpdateBehaviorHandler(w http.ResponseWriter, r *http.Request) {

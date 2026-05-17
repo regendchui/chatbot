@@ -45,3 +45,4 @@ func sendPostBaselineMessage(client *whatsmeow.Client, participantPhone string) 
 	}
 	return sendInitialAIMessageToParticipant(client, participantPhone)
 }
+

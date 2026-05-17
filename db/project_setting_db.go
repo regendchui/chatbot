@@ -49,6 +49,9 @@ const (
 	defaultIntervalOncePerOneWeek     = true
 	defaultIntervalTwicePerOneWeek    = true
 	defaultIntervalOncePerTwoWeek     = true
+	defaultVoiceMessageEnabled        = false
+	defaultVoiceMessageModel          = "openai/whisper-1"
+	defaultVoiceMessageTranscriptionURL = "https://openrouter.ai/api/v1/audio/transcriptions"
 )
 
 type projectSettingRow struct {
@@ -287,6 +290,9 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK":  nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_INTERVAL_ONCE_PER_ONE_WEEK")), boolString(defaultIntervalOncePerOneWeek)),
 		"MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_INTERVAL_TWICE_PER_ONE_WEEK")), boolString(defaultIntervalTwicePerOneWeek)),
 		"MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK":  nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK")), boolString(defaultIntervalOncePerTwoWeek)),
+		"VOICE_MESSAGE_ENABLED":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_ENABLED")), boolString(defaultVoiceMessageEnabled)),
+		"VOICE_MESSAGE_MODEL":                 nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_MODEL")), defaultVoiceMessageModel),
+		"VOICE_MESSAGE_TRANSCRIPTION_URL":     nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_TRANSCRIPTION_URL")), defaultVoiceMessageTranscriptionURL),
 	}
 	defaultPassword := nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_PASSWORD")), defaultAdminPanelPassword)
 	encryptedPassword, err := encryptAdminPanelPassword(defaultPassword)

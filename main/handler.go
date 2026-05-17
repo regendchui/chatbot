@@ -139,9 +139,24 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 		return
 	}
 
-	text := extractText(msg)           // Extract text/caption from message payload.
-	if strings.TrimSpace(text) == "" { // Skip non-text events in this example.
-		return // Exit early when message has no text content.
+	text := extractText(msg)
+	isVoiceMessage := false
+	if strings.TrimSpace(text) == "" {
+		voiceText, voiceOK, voiceErr := processIncomingVoiceMessage(client, msg)
+		if voiceErr != nil {
+			log.Println("Voice message processing error:", voiceErr)
+			return
+		}
+		if !voiceOK {
+			return
+		}
+		text = voiceText
+		isVoiceMessage = true
+	}
+
+	inboundNature := common.MessageNatureClientMessage
+	if isVoiceMessage {
+		inboundNature = common.MessageNatureVoiceMessage
 	}
 
 	// Prefer phone-number JID when WhatsApp uses LID addressing (matches meta + survey full-phone flow).
@@ -179,12 +194,12 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 		baselineDone = false                       // Fail closed: require baseline before AI.
 	}
 	if !baselineDone { // Block AI until baseline survey is completed (meta + web form).
-		db.SaveMessage(common.Message{ // Record inbound before sending baseline invite so timeline stays conversational.
-			Sender:    senderPhone,   // Save sender phone.
-			Receiver:  receiverPhone, // Save bot/receiver phone.
-			Content:   text,          // Save user message.
-			Direction: "inbound",     // Inbound direction.
-			Nature:    common.MessageNatureClientMessage,
+		db.SaveMessage(common.Message{
+			Sender:    senderPhone,
+			Receiver:  receiverPhone,
+			Content:   text,
+			Direction: "inbound",
+			Nature:    inboundNature,
 		})
 		if err := survey.SendBaselineInvitation(client, replyJID, senderPhone); err != nil { // Send invitation_text + survey link.
 			log.Println("Baseline invitation error:", err) // Log send failure.
@@ -204,7 +219,7 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 				Receiver:  receiverPhone,
 				Content:   text,
 				Direction: "inbound",
-				Nature:    common.MessageNatureClientMessage,
+				Nature:    inboundNature,
 			})
 			waitingMessage := verificationMessageFromConfig()
 			if strings.TrimSpace(waitingMessage) != "" {
@@ -227,7 +242,7 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 			Receiver:  receiverPhone,
 			Content:   text,
 			Direction: "inbound",
-			Nature:    common.MessageNatureClientMessage,
+			Nature:    inboundNature,
 		})
 		endMessageSent, err := db.IsParticipantEndMessageSent(senderPhone)
 		if err != nil {
@@ -247,12 +262,12 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 		return
 	}
 
-	db.SaveMessage(common.Message{ // Persist inbound message to PostgreSQL.
-		Sender:    senderPhone,   // Save sender as phone number only.
-		Receiver:  receiverPhone, // Save receiver as bot phone (or fallback label).
-		Content:   text,          // Save inbound message text.
-		Direction: "inbound",     // Mark DB direction as inbound.
-		Nature:    common.MessageNatureClientMessage,
+	db.SaveMessage(common.Message{
+		Sender:    senderPhone,
+		Receiver:  receiverPhone,
+		Content:   text,
+		Direction: "inbound",
+		Nature:    inboundNature,
 	})
 	enqueueCollectiveResponse(client, replyJID, senderPhone, text)
 } // End handleIncomingMessage function.

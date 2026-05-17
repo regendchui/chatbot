@@ -1,12 +1,8 @@
 # WhatsApp chatbot (Whatsmeow + PostgreSQL + OpenRouter)
 
-Go application that pairs with WhatsApp via [whatsmeow](https://github.com/tulir/whatsmeow), stores conversation and participant data in PostgreSQL, serves baseline and follow-up surveys over HTTPS, and uses OpenRouter for replies after a participant completes the baseline survey. An optional admin panel runs on a separate HTTPS port for operations, configuration, and reporting.
+Go application that pairs with WhatsApp via [whatsmeow](https://github.com/tulir/whatsmeow), stores conversation and participant data in PostgreSQL, serves baseline and follow-up surveys over HTTP, and uses OpenRouter (Gemini model) for replies after a participant completes the baseline survey. An optional admin panel runs on a separate HTTP port for operations, configuration, and reporting.
 
 The project is intended to run with **Docker Compose** (app + database). Survey definitions and most tunable settings are loaded from the filesystem on **first** startup, then **persisted and edited** through the `project_setting` table and the admin **Configuration** page.
-
-The author welcomes any research collaboration. For research collaboration, please contact: regend@connect.hku.hk
-
-Link for JSON Configurator: https://regendchui.github.io/chatbot-JSON-configurator/
 
 ## Feature highlights
 
@@ -52,9 +48,9 @@ This application is designed as a production-oriented WhatsApp intervention plat
 ```text
 .
 ├─ main/              # Entrypoint, WhatsApp handlers, collective response, message slice, AI initiation
-├─ db/                # PostgreSQL: init/bootstrap, conversation/meta/surveys/project_setting, logs, RAG, roles, and blacklist management
-├─ survey/            # Survey config, HTTPS forms, invitations, schema migration helpers
-├─ admin_panel/       # Admin HTTPS server, auth/sessions, timeout/countdown, config, logs, RAG + table pages
+├─ db/                # PostgreSQL: init/bootstrap, conversation/meta/surveys/project_setting, logs, RAG, roles, blacklist
+├─ survey/            # Survey config, HTTP forms, invitations, translations, schema migration helpers
+├─ admin_panel/       # Admin HTTP server, auth/sessions, timeout/countdown, config, logs, RAG + table pages
 ├─ AI/                # OpenRouter chat + embeddings integration, memory assembly, RAG retrieval/chunking
 ├─ cron_task/         # Scheduled auto AI/follow-up/manual sends and retry helpers
 ├─ messaging/         # Outbound WhatsApp send helpers + queued cron throttle worker
@@ -86,7 +82,7 @@ This section describes the **purpose of each first-party file** in the applicati
 
 | File | Role |
 |------|------|
-| `main.go` | Application entry: database and `project_setting` bootstrap, survey init, cron workers, WhatsApp client lifecycle, HTTPS servers for surveys and admin, CLI hooks (e.g. emergency admin password reset). |
+| `main.go` | Application entry: database and `project_setting` bootstrap, survey init, cron workers, WhatsApp client lifecycle, HTTP servers for surveys and admin, CLI hooks (e.g. emergency admin password reset). |
 | `handler.go` | Incoming WhatsApp message handler: blacklist/verification/intervention checks, conversation persistence, baseline invitation flow, AI reply orchestration. |
 | `collective_response.go` | Buffers rapid inbound messages per participant and merges them into one AI prompt after a configurable delay. |
 | `message_slice.go` | Outbound AI message slicing pipeline (paragraph-based chunks), configurable delay, and chunk send retries. |
@@ -113,12 +109,13 @@ This section describes the **purpose of each first-party file** in the applicati
 | `login_history_db.go` | Login attempt audit table and recent login history queries for admin logs page. |
 | `config_update_history_db.go` | Configuration change audit table and list queries for admin logs page. |
 
-### `survey/` — surveys, HTTPS forms, schema
+### `survey/` — surveys, HTTP forms, schema
 
 | File | Role |
 |------|------|
 | `survey_config.go` | Go structs for `survey-config.json`, loading from `project_setting`, slug resolution, baseline system-field ordering, project/phases/schedule types. |
-| `survey_web.go` | HTTPS server for `/survey/{slug}`: GET form HTML, POST validation and INSERT into response tables, phone field rules (`SURVEY_PHONE_DIGITS`), client-side validation script for visibility and numeric fields. |
+| `survey_web.go` | HTTP server for `/survey/{slug}`: GET form HTML, POST validation and INSERT into response tables, phone field rules (`SURVEY_PHONE_DIGITS`), client-side validation script for visibility and numeric fields. |
+| `survey_translation.go` | Keys and `SurveyTranslate()` for optional `project.translations` in JSON (UI labels only). |
 | `survey_table.go` | Creates baseline and follow-up **response** tables from JSON; column validation; migration-friendly `ADD COLUMN` for new questions. |
 | `migration.go` | Shared `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` helper for survey table evolution. |
 | `add_FU_meta.go` | Ensures per-follow-up columns on `meta` (`fu_<id>_timestamp`, `fu_<id>_completed`) and related naming helpers. |
@@ -126,11 +123,11 @@ This section describes the **purpose of each first-party file** in the applicati
 | `followup_invitation.go` | Sends a follow-up **WhatsApp** invitation (`invitation_text` + public survey URL) and records the outbound message with the appropriate conversation `nature` (for cron-driven flows). |
 | `hooks.go` | `SchedulingHooks` indirection so `survey` can call cron scheduling without an import cycle (`main` registers db/cron functions at startup). |
 
-### `admin_panel/` — admin HTTPS UI and auth
+### `admin_panel/` — admin HTTP UI and auth
 
 | File | Role |
 |------|------|
-| `admin_panel.go` | Registers all `/admin/...` routes and starts the admin HTTPS server. |
+| `admin_panel.go` | Registers all `/admin/...` routes and starts the admin HTTP server. |
 | `admin_panel_auth.go` | Login, logout, signed session cookie, root admin vs role user auth, path-based permission checks, forwarded-proto secure cookie behavior. |
 | `admin_panel_timeout.go` | Session timeout policy and remaining-time countdown UI helpers for admin pages. |
 | `admin_panel_login_protection.go` | In-memory rate limiting / lockout for failed admin logins (by IP and username). |
@@ -205,10 +202,10 @@ Set these in `.env` before the first `docker compose up`. Many are also editable
 | `OPENROUTER_SITE_URL` | Optional; sent as OpenRouter `HTTP-Referer` header |
 | `OPENROUTER_APP_NAME` | Optional; sent as OpenRouter `X-Title` header |
 | `SURVEY_CONFIG_PATH` | Path to initial `survey-config.json` (default `survey-config.json`) |
-| `SURVEY_HTTP_ADDR` | Survey listen address (default `:8080`) |
+| `SURVEY_HTTP_ADDR` | Survey HTTP listen (default `:8080`) |
 | `SURVEY_PUBLIC_BASE_URL` | Public base URL for survey links in WhatsApp (no trailing slash) |
 | `SURVEY_PHONE_DIGITS` | `0` = allow 8–15 digit phone on survey forms; otherwise exact digit count |
-| `ADMIN_PANEL_HTTP_ADDR` | Admin panel listen address (default `:8081`) |
+| `ADMIN_PANEL_HTTP_ADDR` | Admin panel listen (default `:8081`) |
 | `ADMIN_PANEL_USERNAME`, `ADMIN_PANEL_PASSWORD` | Initial admin login (password is stored encrypted in DB after seed) |
 | `ADMIN_PW_ENCRYPTION_KEY` | Key used to encrypt admin and role passwords at rest |
 | `ADMIN_PANEL_COOKIE_SECURE` | `true` when admin is served over HTTPS (see reverse proxy note) |
@@ -229,39 +226,63 @@ Terminate TLS at your reverse proxy and forward requests to the admin listen por
 
 The proxy should forward `X-Forwarded-Proto: https` when the client used HTTPS so the app can treat the request as secure. Admin home URL is **`/admin/home/`** (login remains **`/admin/login`**).
 
+## Survey UI translations (e.g. Cantonese)
+
+Survey pages show some **fixed** interface text in English by default (project header labels, the phone field label, built-in baseline fields for name and message interval, and the interval choice labels). You can override **only those strings** by adding a `translations` object under **`project`** in your survey JSON (`survey-config.json` on first deploy, or the JSON stored in **Admin → Configuration** after that).
+
 **Important:**
 
+- Translations affect **display on the web form only**. They do **not** change values saved in the database, env vars, or WhatsApp copy unless those are edited separately (e.g. `title`, `invitation_text`, question `label` fields in JSON).
+- **Per-question** labels (`questions[].label` in baseline/follow-ups) are **not** looked up in `translations`; put Cantonese (or any language) directly in each question’s `label` if you need those translated.
+- Written Cantonese for Hong Kong is usually entered as **Traditional Chinese** characters. The examples below use that style; adjust wording to match your project tone.
+
+### How to set Cantonese
+
+1. Open your active survey config:
+   - **New / file-only workflow:** edit `survey-config.json` in the repo **before** the first DB seed, or replace JSON from the admin after import.
+   - **Running system:** sign in to **Admin → Configuration** and edit the big **JSON Variables (survey-config object)** textarea (or upload / replace from URL), then save. The app reloads survey config from the database after a successful save.
+2. Under the top-level `"project"` key, add or merge a `"translations"` object whose keys are exactly those in the table below (snake-case). Missing keys fall back to the built-in English text.
+3. Optionally set `"default_language"` on `project` for your own documentation; the app **only** uses `project.translations` for these UI strings, not automatic locale detection.
+
+### Translation keys (reference)
+
+| JSON key | Default purpose |
+|----------|------------------|
+| `project_label` | Label before project name on the form |
+| `description_label` | Label before project description |
+| `respondent_phone_label` | Phone field label when baseline/follow-up specific keys are absent |
+| `baseline_phone_label` | Phone field label on **baseline** survey (overrides `respondent_phone_label` for baseline if set) |
+| `followup_phone_label` | Phone field label on **follow-up** surveys (overrides `respondent_phone_label` for follow-ups if set) |
+| `participant_name_label` | Built-in baseline “Participant name” field |
+| `participant_name_placeholder` | Placeholder for that field |
+| `message_interval_label` | Built-in baseline “Message interval” field |
+| `interval_once_per_one_week` | Choice: once per week |
+| `interval_twice_per_one_week` | Choice: twice per week |
+| `interval_once_per_two_weeks` | Choice: once per two weeks |
+
+### Example: `project.translations` in Cantonese (Traditional Chinese)
+
+Add inside `"project"` (keep valid JSON commas; merge with your existing `project` fields):
+
+```json
+"translations": {
+  "project_label": "計劃",
+  "description_label": "簡介",
+  "respondent_phone_label": "你的 WhatsApp 電話號碼（只輸入數字，請連同國家或地區碼，例如 85254036581）",
+  "baseline_phone_label": "基線問卷：WhatsApp 電話號碼（只輸入數字，連同國家或地區碼）",
+  "followup_phone_label": "跟進問卷：WhatsApp 電話號碼（只輸入數字，連同國家或地區碼）",
+  "participant_name_label": "參加者姓名",
+  "participant_name_placeholder": "請輸入姓名",
+  "message_interval_label": "訊息頻率",
+  "interval_once_per_one_week": "每星期一次",
+  "interval_twice_per_one_week": "每星期兩次",
+  "interval_once_per_two_weeks": "每兩星期一次",
+  "consent_form_label": "同意書",
+  "consent_agree_label": "同意"
+}
+```
 
 If you use **`SURVEY_PHONE_DIGITS`** (e.g. `11`), update the phone-related strings so participants know the exact length you require; the app enforces length in the input, but the label should match your policy.
-
-## 2.0) Prepare `.env` and survey JSON before VPS setup
-
-Do this before you deploy to the VPS so first boot seeds the correct values.
-
-### A) Edit `.env` (required)
-
-1. Copy the example file to `.env` (if not already present).
-2. Set required secrets and connection values:
-   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-   - `PHONE_ENCRYPTION_KEY` (32 bytes)
-   - `ADMIN_PW_ENCRYPTION_KEY`
-   - `OPENROUTER_API_KEY`
-3. Set public URLs and security flags for your domain:
-   - `SURVEY_PUBLIC_BASE_URL=https://yourdomain.com`
-   - `ADMIN_PANEL_COOKIE_SECURE=true` (when using HTTPS)
-
-4. Please update the docker-compse.yml file if you change the DB_PASSWORD. Please make sure the setting of the yml file matches the setting in the .env file
-
-### B) Edit survey JSON (`survey-config.json`)
-
-The base JSON should come from the repository README workflow/template (the tracked `survey-config.json`, or one generated from `survey_configurator.html` and then saved as `survey-config.json`).
-
-Link for JSON Configurator: https://regendchui.github.io/chatbot-JSON-configurator/
-
-Keep the file path aligned with:
-- `SURVEY_CONFIG_PATH=survey-config.json`
-
-On first startup, this JSON is loaded and mirrored into `project_setting.json_variables`. After that, ongoing edits are usually done in **Admin -> Configuration**.
 
 ## 2.1) Linux VPS Deployment (Hostinger example)
 
@@ -373,21 +394,7 @@ sudo nano /etc/nginx/sites-available/chatbot
 ```nginx
 server {
     listen 80;
-    listen [::]:80;
-
-    server_name yourdomain.com www.yourdomain.com;
-
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-
-    server_name hku-youth-typology.cloud www.hku-youth-typology.cloud;
-
-    ssl_certificate /etc/letsencrypt/live/hku-youth-typology.cloud/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/hku-youth-typology.cloud/privkey.pem;
+    server_name regendstudio.cloud www.regendstudio.cloud;
 
     location /survey/ {
         proxy_pass http://127.0.0.1:8080;
@@ -431,7 +438,7 @@ sudo systemctl reload nginx
 Issue TLS certificate:
 
 ```bash
-certbot --nginx -d yourdomain.com -d www.yourdomain.com
+certbot --nginx -d regendstudio.cloud -d www.regendstudio.cloud
 ```
 
 Verify certificate status:
@@ -441,7 +448,7 @@ certbot certificates
 
 ```
 Enter email address (used for urgent renewal and security notices)
- (Enter 'c' to cancel): your-email@example.com
+ (Enter 'c' to cancel): regend.cwc@gmail.com
 
 
 ### H) SSL renewal (Let's Encrypt)
@@ -618,27 +625,8 @@ Replace host and slugs with yours (`survey-config.json` defines `link_slug` per 
 
 | Area | Example (local) | Example (production) |
 |------|-----------------|----------------------|
-| Survey | `http://localhost/survey/baseline` | `https://yourdomain.com/survey/baseline` |
-| Admin login | `http://localhost/admin/login` | `https://yourdomain.com/admin/login` |
-| Admin home | `http://localhost/admin/home/` | `https://yourdomain.com/admin/home/` |
+| Survey | `http://localhost:8080/survey/baseline` | `https://yourdomain.com/survey/baseline` |
+| Admin login | `http://localhost:8081/admin/login` | `https://yourdomain.com/admin/login` |
+| Admin home | `http://localhost:8081/admin/home/` | `https://yourdomain.com/admin/home/` |
 
 Further admin routes live under `/admin/...` (tables, configuration, enrollment, etc.); use the in-app navigation after login.
-
-## Disclaimer
-
-This project is primarily developed for research and educational purposes. To accelerate development and prototyping, generative AI tools were used to assist with coding, debugging, documentation, and software design. Users who have concerns regarding AI-assisted code generation, human authorship, or originality should carefully evaluate whether this project is appropriate for their intended use.
-
-While reasonable efforts have been made to implement basic security measures and operational safeguards, this software is provided “as is” without any warranty of any kind, express or implied. The author makes no guarantees regarding the security, reliability, stability, accuracy, legal compliance, or fitness of this project for any specific purpose.
-
-Users are solely responsible for:
-
-- Verifying the security and safety of their deployment environment
-- Ensuring compliance with local laws, regulations, institutional policies, and ethical requirements
-- Protecting participant privacy, confidential data, and API credentials
-- Conducting independent testing, validation, and security review before production use
-
-The author shall not be held liable for any direct, indirect, incidental, consequential, legal, financial, operational, or data-related damages arising from the use, misuse, modification, deployment, or distribution of this project.
-
-This project may integrate with third-party services and APIs, including WhatsApp, OpenRouter, PostgreSQL, Docker, and other external platforms. The availability, behavior, privacy practices, and terms of these third-party services are outside the author’s control.
-
-By using this project, you acknowledge and accept all associated risks and responsibilities.

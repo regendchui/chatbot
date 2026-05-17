@@ -5,7 +5,7 @@ services: # Define all services for this stack.
     restart: always # Always restart container if it crashes/stops unexpectedly.
     environment: # Define PostgreSQL bootstrap settings.
       POSTGRES_USER: wa_user # Initial DB username.
-      POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD # Initial DB password.
+      POSTGRES_PASSWORD: K9mT2qL8vR4xP7sN # Initial DB password.
       POSTGRES_DB: wa_db # Initial database name.
     ports:
       - "5432:5432" # Expose DB to host (optional, useful for debugging/admin tools).

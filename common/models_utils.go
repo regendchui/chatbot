@@ -25,6 +25,7 @@ const (
 	MessageNatureInterventionEndMessage    = "intervention_end_message"
 	MessageNatureBaselineInvitationMessage = "baseline_invitation_message"
 	MessageNatureManualMessage             = "manual_message"
+	MessageNatureVoiceMessage              = "voice_message"
 )
 
 func ExtractPhone(jid string) string {

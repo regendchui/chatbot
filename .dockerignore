@@ -1,0 +1,6 @@
+# macOS metadata on exFAT/external volumes breaks Docker BuildKit (xattr errors).
+**/.DS_Store
+**/._*
+
+.git
+.env

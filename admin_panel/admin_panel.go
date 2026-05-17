@@ -72,6 +72,7 @@ func registerAdminPanelRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/whatsapp/logout", adminRequireAuth(adminWhatsAppLogoutHandler))
 	mux.HandleFunc("/admin/configuration", adminRequireAuth(adminConfigurationHandler))
 	mux.HandleFunc("/admin/configuration/update/ai", adminRequireAuth(adminConfigurationUpdateAIHandler))
+	mux.HandleFunc("/admin/configuration/update/voice-message", adminRequireAuth(adminConfigurationUpdateVoiceHandler))
 	mux.HandleFunc("/admin/configuration/update/behavior", adminRequireAuth(adminConfigurationUpdateBehaviorHandler))
 	mux.HandleFunc("/admin/configuration/update/rag", adminRequireAuth(adminConfigurationUpdateRAGHandler))
 	mux.HandleFunc("/admin/configuration/update/verification-message", adminRequireAuth(adminConfigurationUpdateVerificationMessageHandler))
