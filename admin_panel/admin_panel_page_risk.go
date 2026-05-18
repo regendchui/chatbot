@@ -110,13 +110,6 @@ func matchRiskyPhrase(content string, phrases []string) (string, bool) {
 	return "", false
 }
 
-func escapeILIKELiteral(value string) string {
-	value = strings.ReplaceAll(value, `\`, `\\`)
-	value = strings.ReplaceAll(value, `%`, `\%`)
-	value = strings.ReplaceAll(value, `_`, `\_`)
-	return value
-}
-
 func adminLoadRiskConversationRows(phoneFilter string, phrases []string) ([]adminRiskConversationRow, error) {
 	if len(phrases) == 0 {
 		return []adminRiskConversationRow{}, nil
@@ -125,8 +118,8 @@ func adminLoadRiskConversationRows(phoneFilter string, phrases []string) ([]admi
 	conditions := make([]string, 0, len(phrases))
 	args := make([]interface{}, 0, len(phrases))
 	for i, phrase := range phrases {
-		conditions = append(conditions, fmt.Sprintf("content ILIKE $%d ESCAPE E'\\'", i+1))
-		args = append(args, "%"+escapeILIKELiteral(phrase)+"%")
+		conditions = append(conditions, fmt.Sprintf("POSITION(lower($%d) IN lower(content)) > 0", i+1))
+		args = append(args, strings.ToLower(phrase))
 	}
 	query := `
 SELECT id, participant_phone, sender, receiver, direction, nature, content, created_at
