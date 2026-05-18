@@ -7,8 +7,8 @@ services: # Define all services for this stack.
       POSTGRES_USER: wa_user # Initial DB username.
       POSTGRES_PASSWORD: K9mT2qL8vR4xP7sN # Initial DB password.
       POSTGRES_DB: wa_db # Initial database name.
-    ports:
-      - "5432:5432" # Expose DB to host (optional, useful for debugging/admin tools).
+    # ports:
+    #   - "5432:5432" # Expose DB to host only when needed (e.g. local pgAdmin). Commented out to avoid external postgres login noise.
     volumes:
       - pgdata:/var/lib/postgresql/data # Persist database data across container restarts.
     healthcheck: # Wait for DB readiness before bot startup.
