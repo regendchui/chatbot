@@ -142,6 +142,7 @@ func adminNav(r *http.Request) string {
 	items := []navItem{
 		{Path: "/admin/home/", Label: "Home"},
 		{Path: "/admin/table/conversation", Label: "Conversation History"},
+		{Path: "/admin/risk-message", Label: "Risk Message"},
 		{Path: "/admin/client-info", Label: "Client Information"},
 		{Path: "/admin/enrollment", Label: "Enrollment"},
 		{Path: "/admin/blacklist", Label: "Blacklist"},

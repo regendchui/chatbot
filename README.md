@@ -394,7 +394,21 @@ sudo nano /etc/nginx/sites-available/chatbot
 ```nginx
 server {
     listen 80;
-    server_name regendstudio.cloud www.regendstudio.cloud;
+    listen [::]:80;
+
+    server_name hku-youth-typology.cloud www.hku-youth-typology.cloud;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    server_name hku-youth-typology.cloud www.hku-youth-typology.cloud;
+
+    ssl_certificate /etc/letsencrypt/live/hku-youth-typology.cloud/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hku-youth-typology.cloud/privkey.pem;
 
     location /survey/ {
         proxy_pass http://127.0.0.1:8080;

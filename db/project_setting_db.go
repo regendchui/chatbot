@@ -53,6 +53,7 @@ const (
 	defaultVoiceMessageModel          = "openai/whisper-1"
 	defaultVoiceMessageTranscriptionURL   = "https://openrouter.ai/api/v1/audio/transcriptions"
 	defaultVoiceMessageUnintelligibleReply = "I couldn't hear anything in that voice note."
+	defaultRiskyPhrases                   = ""
 )
 
 type projectSettingRow struct {
@@ -295,6 +296,7 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"VOICE_MESSAGE_MODEL":                 nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_MODEL")), defaultVoiceMessageModel),
 		"VOICE_MESSAGE_TRANSCRIPTION_URL":      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_TRANSCRIPTION_URL")), defaultVoiceMessageTranscriptionURL),
 		"VOICE_MESSAGE_UNINTELLIGIBLE_REPLY": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_UNINTELLIGIBLE_REPLY")), defaultVoiceMessageUnintelligibleReply),
+		"RISKY_PHRASES":                      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RISKY_PHRASES")), defaultRiskyPhrases),
 	}
 	defaultPassword := nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_PASSWORD")), defaultAdminPanelPassword)
 	encryptedPassword, err := encryptAdminPanelPassword(defaultPassword)
