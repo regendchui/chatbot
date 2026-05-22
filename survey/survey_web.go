@@ -788,6 +788,7 @@ func handleSurveySubmit(w http.ResponseWriter, r *http.Request, isBaseline bool,
 	if err != nil {                                          // DB error.
 		return fmt.Errorf("save response: %w", err) // Wrap.
 	}
+	var baselineMetaRowsMarked int64
 	if isBaseline {
 		intervalValue := ""
 		if raw, ok := values[MessageIntervalColumn]; ok && raw != nil {
@@ -804,9 +805,31 @@ func handleSurveySubmit(w http.ResponseWriter, r *http.Request, isBaseline bool,
 		n, err := db.MarkParticipantBaselineCompleteWithProfileForPhoneDigits(phoneDigits, intervalValue, participantName)
 		if err != nil {
 			log.Printf("survey submit: baseline meta update error: %v", err)
-		} else if n > 1 {
-			log.Printf("survey submit: baseline marked complete on %d meta rows (duplicate phone rows merged)", n)
+		} else {
+			baselineMetaRowsMarked = n
+			if n > 1 {
+				log.Printf("survey submit: baseline marked complete on %d meta rows (duplicate phone rows merged)", n)
+			}
 		}
+	} else {
+		n, err := db.MarkFollowupCompleteForPhoneDigits(phoneDigits, surveyID)
+		if err != nil {
+			log.Printf("survey submit: followup meta update error: %v", err)
+		} else if n > 1 {
+			log.Printf("survey submit: followup marked complete on %d meta rows", n)
+		}
+	}
+
+	// Show thank-you immediately; scheduling and post-baseline AI run in the background.
+	summary := buildResponseSummary(isBaseline, questions, values, consentFormLabel)
+	writeSurveyThankYouPage(w, surveyTitle, projectName, surveyThankYouMessage(), summary)
+	go runSurveyPostSubmitHooks(isBaseline, phoneDigits, surveyID, baselineMetaRowsMarked)
+	return nil
+} // End handleSurveySubmit.
+
+// runSurveyPostSubmitHooks runs cron scheduling and post-baseline messaging without blocking the HTTP response.
+func runSurveyPostSubmitHooks(isBaseline bool, phoneDigits string, surveyID string, baselineMetaRowsMarked int64) {
+	if isBaseline {
 		if schedulingHooks.ScheduleAutoAIMessages != nil {
 			if err := schedulingHooks.ScheduleAutoAIMessages(phoneDigits); err != nil {
 				log.Printf("survey submit: auto AI message schedule error: %v", err)
@@ -817,28 +840,19 @@ func handleSurveySubmit(w http.ResponseWriter, r *http.Request, isBaseline bool,
 				log.Printf("survey submit: auto follow-up message schedule error: %v", err)
 			}
 		}
-		if n > 0 && schedulingHooks.AfterBaselineCompleted != nil {
+		if baselineMetaRowsMarked > 0 && schedulingHooks.AfterBaselineCompleted != nil {
 			if err := schedulingHooks.AfterBaselineCompleted(phoneDigits); err != nil {
 				log.Printf("survey submit: post-baseline hook error: %v", err)
 			}
 		}
-	} else {
-		n, err := db.MarkFollowupCompleteForPhoneDigits(phoneDigits, surveyID)
-		if err != nil {
-			log.Printf("survey submit: followup meta update error: %v", err)
-		} else if n > 1 {
-			log.Printf("survey submit: followup marked complete on %d meta rows", n)
-		}
-		if schedulingHooks.DeletePendingFollowup != nil {
-			if err := schedulingHooks.DeletePendingFollowup(phoneDigits, surveyID); err != nil {
-				log.Printf("survey submit: remove pending follow-up prompts error: %v", err)
-			}
+		return
+	}
+	if schedulingHooks.DeletePendingFollowup != nil {
+		if err := schedulingHooks.DeletePendingFollowup(phoneDigits, surveyID); err != nil {
+			log.Printf("survey submit: remove pending follow-up prompts error: %v", err)
 		}
 	}
-	summary := buildResponseSummary(isBaseline, questions, values, consentFormLabel)
-	writeSurveyThankYouPage(w, surveyTitle, projectName, surveyThankYouMessage(), summary)
-	return nil
-} // End handleSurveySubmit.
+}
 
 // normalizeRespondentPhoneForSurvey strips non-digits and enforces 8-15 digit full international numbers.
 func normalizeRespondentPhoneForSurvey(raw string) (string, error) {

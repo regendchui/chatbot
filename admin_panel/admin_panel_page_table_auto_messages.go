@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -219,11 +220,12 @@ func adminAutoMessageRetrySendHandler(w http.ResponseWriter, r *http.Request) {
 		redirWithMsg("Send missed is not available (WhatsApp client not wired).")
 		return
 	}
-	if err := autoMessageRetrySendFunc(taskID); err != nil {
-		redirWithMsg("Send missed failed: " + err.Error())
-		return
-	}
-	redirWithMsg("Missed message sent and marked as sent.")
+	go func(id int64) {
+		if err := autoMessageRetrySendFunc(id); err != nil {
+			log.Printf("admin auto-messages retry-send (task=%d): %v", id, err)
+		}
+	}(taskID)
+	redirWithMsg("Missed message send started. Refresh the page in a few seconds to confirm it was marked sent.")
 }
 
 func adminAutoMessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
