@@ -273,10 +273,14 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 		Direction: "inbound",
 		Nature:    inboundNature,
 	})
-	enqueueCollectiveResponse(client, replyJID, senderPhone, text)
+	latestMedium := ai.LatestInboundMediumText
+	if isVoiceMessage {
+		latestMedium = ai.LatestInboundMediumVoice
+	}
+	enqueueCollectiveResponse(client, replyJID, senderPhone, text, latestMedium)
 } // End handleIncomingMessage function.
 
-func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, senderPhone string, prompt string) {
+func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, senderPhone string, prompt string, latestMedium ai.LatestInboundMedium) {
 	memoryMessages, err := ai.GetLastMessagesForParticipant(senderPhone, ai.GetAIMemoryMessageLimitFromEnv()) // Load participant-scoped chat memory for AI.
 	if err != nil {                                                                // Check memory loading failure.
 		log.Println("Memory load error:", err) // Log error and continue with minimal context.
@@ -294,7 +298,7 @@ func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, sen
 		phaseContext = ""
 	}
 
-	reply, err := ai.GenerateAIResponse(prompt, memoryMessages, surveyContext, phaseContext)
+	reply, err := ai.GenerateAIResponse(prompt, memoryMessages, surveyContext, phaseContext, latestMedium)
 	if err != nil {
 		log.Println("AI response error:", err)
 		if !shouldSendAIErrorFallback() {

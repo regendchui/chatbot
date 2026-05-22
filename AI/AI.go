@@ -23,6 +23,19 @@ Reply clearly and briefly.
 If memory contains useful context, use it.
 If user asks something unsafe or illegal, refuse politely.` // Define default system prompt used for every AI reply.
 
+const voiceMessagePromptNote = "This message is a voice message."
+const textMessagePromptNote = "This message is a text message."
+
+// LatestInboundMedium tells buildUserPrompt how to label the latest participant message.
+type LatestInboundMedium int
+
+const (
+	LatestInboundMediumNone LatestInboundMedium = iota // System/cron instructions (no medium label).
+	LatestInboundMediumText
+	LatestInboundMediumVoice
+	LatestInboundMediumPrefixed // Caller already embedded medium notes (e.g. collective response batch).
+)
+
 // Keep log import compile-safe when debug log line is temporarily commented.
 var _ = log.Printf
 
@@ -48,7 +61,7 @@ type openRouterGenerateResponse struct {
 	} `json:"choices"`
 }
 
-func GenerateAIResponse(incomingText string, memory []common.Message, surveyContext string, phaseContext string) (string, error) { // Generate response text using OpenRouter with DB memory context.
+func GenerateAIResponse(incomingText string, memory []common.Message, surveyContext string, phaseContext string, latestMedium LatestInboundMedium) (string, error) { // Generate response text using OpenRouter with DB memory context.
 	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")) // Read OpenRouter API key from environment.
 	if apiKey == "" {
 		apiKey = strings.TrimSpace(os.Getenv("GEMINI_API_KEY")) // Backward-compatible fallback.
@@ -78,7 +91,7 @@ func GenerateAIResponse(incomingText string, memory []common.Message, surveyCont
 		ragDebug = "rag_error=" + err.Error()
 		ragContext = ""
 	}
-	userPrompt := buildUserPrompt(incomingText, memory, surveyContext, phaseContext, ragContext) // Build user prompt containing incoming message and memory.
+	userPrompt := buildUserPrompt(incomingText, memory, surveyContext, phaseContext, ragContext, latestMedium) // Build user prompt containing incoming message and memory.
 	log.Printf(
 		"OpenRouter request payload\nmodel: %s\nsystem_prompt:\n%s\nsurvey_context:\n%s\nphase_context:\n%s\nrag_debug:\n%s\nrag_context:\n%s\nuser_prompt:\n%s",
 		model,
@@ -156,7 +169,29 @@ func GenerateAIResponse(incomingText string, memory []common.Message, surveyCont
 	return reply, nil // Return generated reply text.
 } // End GenerateAIResponse function.
 
-func buildUserPrompt(incomingText string, memory []common.Message, surveyContext string, phaseContext string, ragContext string) string { // Build prompt text combining memory and latest user message.
+// FormatInboundUserMessageBlock prefixes one participant message with its medium label for prompts.
+func FormatInboundUserMessageBlock(text string, isVoiceMessage bool) string {
+	note := textMessagePromptNote
+	if isVoiceMessage {
+		note = voiceMessagePromptNote
+	}
+	return note + "\n" + strings.TrimSpace(text)
+}
+
+func inboundMemoryMediumNote(msg common.Message) string {
+	if !strings.EqualFold(strings.TrimSpace(msg.Direction), "inbound") {
+		return ""
+	}
+	if strings.EqualFold(strings.TrimSpace(msg.Nature), common.MessageNatureVoiceMessage) {
+		return voiceMessagePromptNote
+	}
+	if strings.EqualFold(strings.TrimSpace(msg.Nature), common.MessageNatureClientMessage) || strings.TrimSpace(msg.Nature) == "" {
+		return textMessagePromptNote
+	}
+	return ""
+}
+
+func buildUserPrompt(incomingText string, memory []common.Message, surveyContext string, phaseContext string, ragContext string, latestMedium LatestInboundMedium) string { // Build prompt text combining memory and latest user message.
 	lines := make([]string, 0, len(memory)+8)                         // Pre-allocate lines slice for prompt content.
 	lines = append(lines, "You are replying in a WhatsApp chat.")     // Add high-level task instruction.
 	lines = append(lines, "Use the memory records below as context.") // Instruct model to use memory context.
@@ -179,20 +214,39 @@ func buildUserPrompt(incomingText string, memory []common.Message, surveyContext
 	lines = append(lines, "MEMORY (oldest to newest):") // Add memory section label.
 
 	for _, msg := range memory { // Convert each memory record into one compact prompt line.
-		line := fmt.Sprintf( // Build readable memory line with direction and participants.
-			"- [%s] [%s] from=%s to=%s: %s",  // Template for one memory row including timestamp.
-			strings.TrimSpace(msg.Timestamp), // Insert message timestamp for temporal context.
-			strings.TrimSpace(msg.Direction), // Insert message direction.
-			strings.TrimSpace(msg.Sender),    // Insert sender phone.
-			strings.TrimSpace(msg.Receiver),  // Insert receiver phone.
-			strings.TrimSpace(msg.Content),   // Insert message content.
+		content := strings.TrimSpace(msg.Content)
+		if note := inboundMemoryMediumNote(msg); note != "" {
+			if content != "" {
+				content = note + " " + content
+			} else {
+				content = note
+			}
+		}
+		line := fmt.Sprintf(
+			"- [%s] [%s] from=%s to=%s: %s",
+			strings.TrimSpace(msg.Timestamp),
+			strings.TrimSpace(msg.Direction),
+			strings.TrimSpace(msg.Sender),
+			strings.TrimSpace(msg.Receiver),
+			content,
 		)
-		lines = append(lines, line) // Append memory line into prompt.
+		lines = append(lines, line)
 	}
 
-	lines = append(lines, "")                                            // Add empty line separator before latest message.
-	lines = append(lines, "LATEST USER MESSAGE:")                        // Label latest incoming user message section.
-	lines = append(lines, strings.TrimSpace(incomingText))               // Insert incoming message text.
+	lines = append(lines, "")
+	lines = append(lines, "LATEST USER MESSAGE:")
+	switch latestMedium {
+	case LatestInboundMediumVoice:
+		lines = append(lines, voiceMessagePromptNote)
+		lines = append(lines, strings.TrimSpace(incomingText))
+	case LatestInboundMediumText:
+		lines = append(lines, textMessagePromptNote)
+		lines = append(lines, strings.TrimSpace(incomingText))
+	case LatestInboundMediumPrefixed:
+		lines = append(lines, strings.TrimSpace(incomingText))
+	default:
+		lines = append(lines, strings.TrimSpace(incomingText))
+	}
 	lines = append(lines, "")                                            // Add empty line separator before instruction.
 	lines = append(lines, "Write one helpful WhatsApp reply text only.") // Force concise single-reply output.
 

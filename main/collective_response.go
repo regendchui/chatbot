@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	ai "whatsapp-bot/AI"
 	"whatsapp-bot/db"
 
 	"go.mau.fi/whatsmeow"
@@ -14,10 +15,15 @@ import (
 
 const defaultCollectiveResponseDelay = 3 * time.Second
 
+type collectiveBufferedMessage struct {
+	text            string
+	isVoiceMessage  bool
+}
+
 type collectiveResponseBucket struct {
 	senderPhone string
 	replyJID    types.JID
-	messages    []string
+	messages    []collectiveBufferedMessage
 	timer       *time.Timer
 }
 
@@ -40,21 +46,21 @@ func collectiveResponseDelay() time.Duration {
 	return time.Duration(sec) * time.Second
 }
 
-func enqueueCollectiveResponse(client *whatsmeow.Client, replyJID types.JID, senderPhone string, text string) {
+func enqueueCollectiveResponse(client *whatsmeow.Client, replyJID types.JID, senderPhone string, text string, latestMedium ai.LatestInboundMedium) {
 	if !collectiveResponseEnabled() {
-		generateAndSendAIResponse(client, replyJID, senderPhone, text)
+		generateAndSendAIResponse(client, replyJID, senderPhone, text, latestMedium)
 		return
 	}
 
 	delay := collectiveResponseDelay()
 	if delay <= 0 {
-		generateAndSendAIResponse(client, replyJID, senderPhone, text)
+		generateAndSendAIResponse(client, replyJID, senderPhone, text, latestMedium)
 		return
 	}
 
 	key := strings.TrimSpace(senderPhone)
 	if key == "" {
-		generateAndSendAIResponse(client, replyJID, senderPhone, text)
+		generateAndSendAIResponse(client, replyJID, senderPhone, text, latestMedium)
 		return
 	}
 
@@ -64,12 +70,16 @@ func enqueueCollectiveResponse(client *whatsmeow.Client, replyJID types.JID, sen
 		bucket = &collectiveResponseBucket{
 			senderPhone: key,
 			replyJID:    replyJID,
-			messages:    []string{},
+			messages:    []collectiveBufferedMessage{},
 		}
 		collectiveResponseState.buckets[key] = bucket
 	}
 	bucket.replyJID = replyJID
-	bucket.messages = append(bucket.messages, strings.TrimSpace(text))
+	isVoice := latestMedium == ai.LatestInboundMediumVoice
+	bucket.messages = append(bucket.messages, collectiveBufferedMessage{
+		text:           strings.TrimSpace(text),
+		isVoiceMessage: isVoice,
+	})
 	if bucket.timer != nil {
 		bucket.timer.Stop()
 	}
@@ -87,22 +97,23 @@ func flushCollectiveResponseBucket(client *whatsmeow.Client, key string) {
 		return
 	}
 	delete(collectiveResponseState.buckets, key)
-	messages := append([]string(nil), bucket.messages...)
+	messages := append([]collectiveBufferedMessage(nil), bucket.messages...)
 	replyJID := bucket.replyJID
 	senderPhone := bucket.senderPhone
 	collectiveResponseState.mu.Unlock()
 
-	parts := make([]string, 0, len(messages))
+	blocks := make([]string, 0, len(messages))
 	for _, msg := range messages {
-		trimmed := strings.TrimSpace(msg)
-		if trimmed != "" {
-			parts = append(parts, trimmed)
+		trimmed := strings.TrimSpace(msg.text)
+		if trimmed == "" {
+			continue
 		}
+		blocks = append(blocks, ai.FormatInboundUserMessageBlock(trimmed, msg.isVoiceMessage))
 	}
-	if len(parts) == 0 {
+	if len(blocks) == 0 {
 		return
 	}
-	joinedPrompt := strings.Join(parts, "\n")
-	log.Printf("collective response: sender=%s buffered_messages=%d", senderPhone, len(parts))
-	generateAndSendAIResponse(client, replyJID, senderPhone, joinedPrompt)
+	joinedPrompt := strings.Join(blocks, "\n\n")
+	log.Printf("collective response: sender=%s buffered_messages=%d", senderPhone, len(blocks))
+	generateAndSendAIResponse(client, replyJID, senderPhone, joinedPrompt, ai.LatestInboundMediumPrefixed)
 }
