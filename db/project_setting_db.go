@@ -54,6 +54,7 @@ const (
 	defaultVoiceMessageTranscriptionURL   = "https://openrouter.ai/api/v1/audio/transcriptions"
 	defaultVoiceMessageUnintelligibleReply = "I couldn't hear anything in that voice note."
 	defaultRiskyPhrases                   = ""
+	defaultThankYouMessage                = "Thank you for your response"
 )
 
 type projectSettingRow struct {
@@ -297,6 +298,7 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"VOICE_MESSAGE_TRANSCRIPTION_URL":      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_TRANSCRIPTION_URL")), defaultVoiceMessageTranscriptionURL),
 		"VOICE_MESSAGE_UNINTELLIGIBLE_REPLY": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_UNINTELLIGIBLE_REPLY")), defaultVoiceMessageUnintelligibleReply),
 		"RISKY_PHRASES":                      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RISKY_PHRASES")), defaultRiskyPhrases),
+		"THANKYOU_MESSAGE":                   nonEmptyOrDefault(strings.TrimSpace(os.Getenv("THANKYOU_MESSAGE")), defaultThankYouMessage),
 	}
 	defaultPassword := nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_PASSWORD")), defaultAdminPanelPassword)
 	encryptedPassword, err := encryptAdminPanelPassword(defaultPassword)

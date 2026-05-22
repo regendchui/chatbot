@@ -51,6 +51,7 @@ func handleSurveyPath(w http.ResponseWriter, r *http.Request) { // HTTP entry.
 	}
 	switch r.Method { // Dispatch by verb.
 	case http.MethodGet: // Show HTML form.
+		prefillPhone := phoneFromSurveyQuery(r)
 		if isBL { // Baseline survey.
 			writeSurveyForm(
 				w,
@@ -62,8 +63,9 @@ func handleSurveyPath(w http.ResponseWriter, r *http.Request) { // HTTP entry.
 				strings.TrimSpace(globalSurveyConfig.Project.Description),
 				strings.TrimSpace(globalSurveyConfig.Project.ConsentFormText),
 				strings.TrimSpace(globalSurveyConfig.Project.ConsentFormLabel),
-			) // Render baseline form with built-in fields.
-			return // Done.
+				prefillPhone,
+			)
+			return
 		}
 		writeSurveyForm(
 			w,
@@ -75,24 +77,38 @@ func handleSurveyPath(w http.ResponseWriter, r *http.Request) { // HTTP entry.
 			strings.TrimSpace(globalSurveyConfig.Project.Description),
 			"",
 			"",
-		) // Render follow-up form.
+			prefillPhone,
+		)
 	case http.MethodPost: // Accept submission.
-		if isBL { // Baseline submit.
-			if err := handleSurveySubmit(w, r, true, bl.TableName, bl.SurveyID, BaselineQuestionsWithSystemFields(bl.Questions)); err != nil { // Process baseline with built-in fields.
-				http.Error(w, err.Error(), http.StatusBadRequest) // Client error.
-			}
-			return // Stop.
+		projectName := ""
+		consentFormLabel := ""
+		if globalSurveyConfig != nil {
+			projectName = strings.TrimSpace(globalSurveyConfig.Project.Name)
+			consentFormLabel = strings.TrimSpace(globalSurveyConfig.Project.ConsentFormLabel)
 		}
-		if err := handleSurveySubmit(w, r, false, fu.TableName, fu.SurveyID, fu.Questions); err != nil { // FU submit.
-			http.Error(w, err.Error(), http.StatusBadRequest) // Client error.
+		if isBL { // Baseline submit.
+			if err := handleSurveySubmit(w, r, true, bl.TableName, bl.SurveyID, BaselineQuestionsWithSystemFields(bl.Questions), bl.Title, projectName, consentFormLabel); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
+			return
+		}
+		if err := handleSurveySubmit(w, r, false, fu.TableName, fu.SurveyID, fu.Questions, fu.Title, projectName, consentFormLabel); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	default: // Unsupported method.
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed) // 405.
 	}
 } // End handleSurveyPath.
 
+func phoneFromSurveyQuery(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	return common.DigitsOnly(strings.TrimSpace(r.URL.Query().Get("phone")))
+}
+
 // writeSurveyForm renders a minimal HTML page with phone field + JSON questions.
-func writeSurveyForm(w http.ResponseWriter, title string, slug string, questions []SurveyQuestion, isBaseline bool, projectName string, projectDescription string, consentFormText string, consentFormLabel string) { // HTML writer.
+func writeSurveyForm(w http.ResponseWriter, title string, slug string, questions []SurveyQuestion, isBaseline bool, projectName string, projectDescription string, consentFormText string, consentFormLabel string, prefilledPhone string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")   // UTF-8 HTML.
 	var b strings.Builder                                        // Build HTML in memory.
 	script := buildSurveyFormClientScript(questions, isBaseline) // Build dynamic frontend validation + visibility script.
@@ -108,7 +124,9 @@ func writeSurveyForm(w http.ResponseWriter, title string, slug string, questions
 	phoneLabel := translatedSurveyPhoneLabel(isBaseline)
 	b.WriteString("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   // Doc start.
 	b.WriteString(html.EscapeString(title))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       // Escape title.
-	b.WriteString("</title><style>body{font-family:Inter,-apple-system,BlinkMacSystemFont,\"Segoe UI\",Arial,sans-serif;line-height:1.5;background:#f8fafc;color:#0f172a;margin:0;padding:18px;} .survey-wrap{max-width:760px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.06);padding:18px;} h1{margin:0 0 10px 0;} p{margin:8px 0;} fieldset{margin:14px 0;padding:12px;border:1px solid #d9e2ec;border-radius:10px;background:#fcfdff;} legend{font-weight:600;padding:0 6px;} label{display:inline-block;} input,textarea,select{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:14px;box-sizing:border-box;} input[type='text'],input[type='number'],textarea,select{width:min(100%,420px);} input[type='radio'],input[type='checkbox']{width:auto;margin-right:6px;padding:0;} button{border:1px solid #0f5fd8;background:#0f5fd8;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;} button:hover{background:#0b4eb6;} .required-badge{color:#b91c1c;margin-left:6px;} .missing-required{border-color:#b91c1c;background:#fff5f5;} .form-hint{display:none;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px;border-radius:8px;margin-bottom:12px;} .form-hint ul{margin:8px 0 0 20px;padding:0;}</style></head><body><div class=\"survey-wrap\">") // Head end.
+	b.WriteString("</title>")
+	writeSurveyPageStyles(&b)
+	b.WriteString(`</head><body><div class="survey-wrap">`)
 	b.WriteString("<h1>")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         // Heading open.
 	b.WriteString(html.EscapeString(title))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       // Escape heading.
 	b.WriteString("</h1>")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        // Heading close.
@@ -135,8 +153,12 @@ func writeSurveyForm(w http.ResponseWriter, title string, slug string, questions
 	b.WriteString("\" minlength=\"")
 	b.WriteString(html.EscapeString(phoneMinLen))
 	b.WriteString("\" inputmode=\"numeric\" name=\"")
-	b.WriteString(RespondentPhoneColumn) // Field name matches DB column.
-	b.WriteString("\"></label></p>")     // Close phone field.
+	b.WriteString(RespondentPhoneColumn)
+	if prefilledPhone != "" {
+		b.WriteString(`" value="`)
+		b.WriteString(html.EscapeString(prefilledPhone))
+	}
+	b.WriteString("\"></label></p>")
 	if isBaseline {
 		label := strings.TrimSpace(consentFormLabel)
 		if label == "" {
@@ -506,8 +528,193 @@ setBaselineConsentGateState();
 })();`, logicJSON, requireConsent)
 }
 
+// surveyPageStylesCSS is shared between the survey form and thank-you pages.
+const surveyPageStylesCSS = `body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;line-height:1.5;background:#f8fafc;color:#0f172a;margin:0;padding:18px;}
+.survey-wrap{max-width:760px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.06);padding:18px;}
+h1{margin:0 0 10px 0;font-size:1.35rem;}
+h2{margin:18px 0 10px 0;font-size:1.05rem;color:#334155;}
+p{margin:8px 0;}
+fieldset{margin:14px 0;padding:12px;border:1px solid #d9e2ec;border-radius:10px;background:#fcfdff;}
+legend{font-weight:600;padding:0 6px;}
+label{display:inline-block;}
+input,textarea,select{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:14px;box-sizing:border-box;}
+input[type='text'],input[type='number'],textarea,select{width:min(100%,420px);}
+input[type='radio'],input[type='checkbox']{width:auto;margin-right:6px;padding:0;}
+button{border:1px solid #0f5fd8;background:#0f5fd8;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;}
+button:hover{background:#0b4eb6;}
+.required-badge{color:#b91c1c;margin-left:6px;}
+.missing-required{border-color:#b91c1c;background:#fff5f5;}
+.form-hint{display:none;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px;border-radius:8px;margin-bottom:12px;}
+.form-hint ul{margin:8px 0 0 20px;padding:0;}
+.thankyou-msg{font-size:1.05rem;color:#0f172a;margin:12px 0 18px;padding:12px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;}
+.thankyou-footer{color:#64748b;margin-top:20px;font-size:0.95rem;}
+.summary-list{margin:0;padding:0;list-style:none;}
+.summary-item{margin:10px 0;padding:12px 14px;border:1px solid #d9e2ec;border-radius:10px;background:#fcfdff;}
+.summary-item dt{font-weight:600;color:#334155;margin:0 0 6px 0;font-size:0.92rem;}
+.summary-item dd{margin:0;color:#0f172a;white-space:pre-wrap;word-break:break-word;}
+.summary-empty{color:#94a3b8;font-style:italic;}`
+
+func writeSurveyPageStyles(b *strings.Builder) {
+	b.WriteString("<style>")
+	b.WriteString(surveyPageStylesCSS)
+	b.WriteString("</style>")
+}
+
+const defaultSurveyThankYouMessage = "Thank you for your response"
+
+func surveyThankYouMessage() string {
+	msg := strings.TrimSpace(db.GetProjectSettingString("THANKYOU_MESSAGE", defaultSurveyThankYouMessage))
+	if msg == "" {
+		return defaultSurveyThankYouMessage
+	}
+	return msg
+}
+
+type surveySummaryRow struct {
+	Label string
+	Value string
+}
+
+func buildResponseSummary(isBaseline bool, questions []SurveyQuestion, values map[string]interface{}, consentFormLabel string) []surveySummaryRow {
+	rows := make([]surveySummaryRow, 0, len(questions)+2)
+	if raw, ok := values[RespondentPhoneColumn]; ok {
+		if s, ok := raw.(string); ok && strings.TrimSpace(s) != "" {
+			rows = append(rows, surveySummaryRow{
+				Label: translatedSurveyPhoneLabel(isBaseline),
+				Value: s,
+			})
+		}
+	}
+	if isBaseline {
+		if raw, ok := values[ConsentColumn]; ok {
+			if s, ok := raw.(string); ok && strings.TrimSpace(s) == "agreed" {
+				label := strings.TrimSpace(consentFormLabel)
+				if label == "" {
+					label = SurveyTranslate(SurveyTranslationConsentFormLabel, "Consent Form")
+				}
+				rows = append(rows, surveySummaryRow{
+					Label: label,
+					Value: SurveyTranslate(SurveyTranslationConsentRecorded, "Agreed"),
+				})
+			}
+		}
+	}
+	for _, q := range questions {
+		cn := strings.TrimSpace(q.ColumnName)
+		if cn == "" || cn == RespondentPhoneColumn || (isBaseline && cn == ConsentColumn) {
+			continue
+		}
+		raw := ""
+		if v, ok := values[cn]; ok && v != nil {
+			if s, ok := v.(string); ok {
+				raw = s
+			}
+		}
+		label := strings.TrimSpace(q.Label)
+		if label == "" {
+			label = cn
+		}
+		display := formatSurveyAnswerDisplay(q, raw)
+		if display == "" {
+			display = "—"
+		}
+		rows = append(rows, surveySummaryRow{Label: label, Value: display})
+	}
+	return rows
+}
+
+func formatSurveyAnswerDisplay(q SurveyQuestion, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(q.Type)) {
+	case "multiple_choice":
+		if lbl := surveyChoiceLabelByValue(q.Choices, raw); lbl != "" {
+			return lbl
+		}
+		return raw
+	case "multiple_select":
+		parts := strings.Split(raw, ",")
+		labels := make([]string, 0, len(parts))
+		for _, p := range parts {
+			v := strings.TrimSpace(p)
+			if v == "" {
+				continue
+			}
+			if lbl := surveyChoiceLabelByValue(q.Choices, v); lbl != "" {
+				labels = append(labels, lbl)
+			} else {
+				labels = append(labels, v)
+			}
+		}
+		return strings.Join(labels, ", ")
+	default:
+		return raw
+	}
+}
+
+func surveyChoiceLabelByValue(choices []SurveyChoice, value string) string {
+	for _, ch := range choices {
+		if strings.TrimSpace(ch.Value) == value {
+			if lbl := strings.TrimSpace(ch.Label); lbl != "" {
+				return lbl
+			}
+			return value
+		}
+	}
+	return ""
+}
+
+func writeSurveyThankYouPage(w http.ResponseWriter, surveyTitle string, projectName string, thankYouMsg string, summary []surveySummaryRow) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	var b strings.Builder
+	b.WriteString("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>")
+	b.WriteString(html.EscapeString(surveyTitle))
+	b.WriteString("</title>")
+	writeSurveyPageStyles(&b)
+	b.WriteString(`</head><body><div class="survey-wrap">`)
+	b.WriteString("<h1>")
+	b.WriteString(html.EscapeString(surveyTitle))
+	b.WriteString("</h1>")
+	if strings.TrimSpace(projectName) != "" {
+		b.WriteString("<p><strong>")
+		b.WriteString(html.EscapeString(SurveyTranslate(SurveyTranslationProjectLabel, "Project")))
+		b.WriteString(":</strong> ")
+		b.WriteString(html.EscapeString(strings.TrimSpace(projectName)))
+		b.WriteString("</p>")
+	}
+	b.WriteString(`<p class="thankyou-msg">`)
+	b.WriteString(html.EscapeString(strings.TrimSpace(thankYouMsg)))
+	b.WriteString(`</p>`)
+	b.WriteString("<h2>")
+	b.WriteString(html.EscapeString(SurveyTranslate(SurveyTranslationResponseSummary, "Your responses")))
+	b.WriteString("</h2>")
+	b.WriteString(`<dl class="summary-list">`)
+	for _, row := range summary {
+		b.WriteString(`<div class="summary-item"><dt>`)
+		b.WriteString(html.EscapeString(row.Label))
+		b.WriteString(`</dt><dd>`)
+		val := strings.TrimSpace(row.Value)
+		if val == "" || val == "—" {
+			b.WriteString(`<span class="summary-empty">`)
+			b.WriteString(html.EscapeString("—"))
+			b.WriteString(`</span>`)
+		} else {
+			b.WriteString(html.EscapeString(val))
+		}
+		b.WriteString(`</dd></div>`)
+	}
+	b.WriteString(`</dl>`)
+	b.WriteString(`<p class="thankyou-footer">`)
+	b.WriteString(html.EscapeString(SurveyTranslate(SurveyTranslationReturnToWhatsApp, "You may return to WhatsApp.")))
+	b.WriteString(`</p>`)
+	b.WriteString(`</div></body></html>`)
+	_, _ = w.Write([]byte(b.String()))
+}
+
 // handleSurveySubmit parses POST, validates, INSERTs row, updates meta completion flags.
-func handleSurveySubmit(w http.ResponseWriter, r *http.Request, isBaseline bool, tableName string, surveyID string, questions []SurveyQuestion) error { // POST handler.
+func handleSurveySubmit(w http.ResponseWriter, r *http.Request, isBaseline bool, tableName string, surveyID string, questions []SurveyQuestion, surveyTitle string, projectName string, consentFormLabel string) error {
 	if err := r.ParseForm(); err != nil { // Parse body.
 		return fmt.Errorf("parse form: %w", err) // Wrap error.
 	}
@@ -628,9 +835,9 @@ func handleSurveySubmit(w http.ResponseWriter, r *http.Request, isBaseline bool,
 			}
 		}
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")                                               // Thank-you page.
-	fmt.Fprintf(w, "<!DOCTYPE html><html><body><p>Thank you. You may return to WhatsApp.</p></body></html>") // Simple ack.
-	return nil                                                                                               // Success.
+	summary := buildResponseSummary(isBaseline, questions, values, consentFormLabel)
+	writeSurveyThankYouPage(w, surveyTitle, projectName, surveyThankYouMessage(), summary)
+	return nil
 } // End handleSurveySubmit.
 
 // normalizeRespondentPhoneForSurvey strips non-digits and enforces 8-15 digit full international numbers.

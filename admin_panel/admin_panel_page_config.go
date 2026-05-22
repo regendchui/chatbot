@@ -59,6 +59,12 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<p><button type="submit">Save voice message settings</button></p>`)
 	b.WriteString(`</form>`)
 
+	b.WriteString(`<h3>Survey Thank You Settings</h3>`)
+	b.WriteString(`<form method="post" action="/admin/configuration/update/survey-thankyou">`)
+	b.WriteString(`<p><label>THANKYOU_MESSAGE (shown on the survey completion page)<br><textarea name="THANKYOU_MESSAGE" rows="3" cols="120" required>` + html.EscapeString(envVars["THANKYOU_MESSAGE"]) + `</textarea></label></p>`)
+	b.WriteString(`<p><button type="submit">Save survey thank you message</button></p>`)
+	b.WriteString(`</form>`)
+
 	b.WriteString(`<h3>Risk Message Settings</h3>`)
 	b.WriteString(`<form method="post" action="/admin/configuration/update/risk-message">`)
 	b.WriteString(`<p><label>RISKY_PHRASES (comma-separated; matched against conversation content)<br><textarea name="RISKY_PHRASES" rows="8" cols="120">` + html.EscapeString(envVars["RISKY_PHRASES"]) + `</textarea></label></p>`)
@@ -241,6 +247,30 @@ func adminConfigurationUpdateVoiceHandler(w http.ResponseWriter, r *http.Request
 	}
 	adminRecordConfigUpdateHistory(r, "update_voice_message_settings", "Updated voice message settings including VOICE_MESSAGE_UNINTELLIGIBLE_REPLY")
 	adminConfigRedirect(w, r, "Voice message settings updated.")
+}
+
+func adminConfigurationUpdateSurveyThankYouHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		adminConfigRedirect(w, r, "Invalid form data.")
+		return
+	}
+	thankYouMsg := strings.TrimSpace(r.FormValue("THANKYOU_MESSAGE"))
+	if thankYouMsg == "" {
+		adminConfigRedirect(w, r, "THANKYOU_MESSAGE is required.")
+		return
+	}
+	if err := db.UpdateProjectEnvVariables(map[string]string{
+		"THANKYOU_MESSAGE": thankYouMsg,
+	}); err != nil {
+		adminConfigRedirect(w, r, "Failed to save survey thank you message.")
+		return
+	}
+	adminRecordConfigUpdateHistory(r, "update_survey_thankyou_message", "Updated THANKYOU_MESSAGE")
+	adminConfigRedirect(w, r, "Survey thank you message updated.")
 }
 
 func adminConfigurationUpdateRiskMessageHandler(w http.ResponseWriter, r *http.Request) {

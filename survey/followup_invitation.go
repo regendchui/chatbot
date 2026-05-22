@@ -15,7 +15,7 @@ func SendFollowupInvitation(client *whatsmeow.Client, participantPhone string, f
 	if client == nil { // Guard nil client.
 		return fmt.Errorf("client is nil") // Validation error.
 	}
-	url, err := FollowupSurveyURL(fu.LinkSlug) // Build public survey link.
+	url, err := FollowupSurveyURLForParticipant(fu.LinkSlug, participantPhone)
 	if err != nil {                            // Config error.
 		return err // Propagate.
 	}

@@ -58,4 +58,6 @@ VOICE_MESSAGE_MODEL=openai/whisper-1
 VOICE_MESSAGE_TRANSCRIPTION_URL=https://openrouter.ai/api/v1/audio/transcriptions
 VOICE_MESSAGE_UNINTELLIGIBLE_REPLY=I couldn't hear anything in that voice note.
 
+THANKYOU_MESSAGE=Thank you for your response
+
 RISKY_PHRASES=自殺,自残,自殘,輕生,寻死,尋死,想死,不想活,不想活了,活不下去,活著沒意思,活着没意思,结束生命,結束生命,了结自己,了結自己,自我了断,自我了斷,割腕,割手,割脈,割脉,上吊,吊頸,吊颈,燒炭,服毒,吞藥,吞药,跳樓,跳楼,墜樓,坠楼,跳河,投河,自焚,撞牆,撞墙,自殘,自残,傷害自己,伤害自己,弄傷自己,割自己,打自己,虐待自己,拿刀割,流血,不如死,我想死,我想自殺,我想自残,我想結束生命,我不想活了,沒有人在乎我,没有人在乎我,活著很痛苦,活着很痛苦,suicide,kill myself,end my life,take my own life,want to die,don't want to live,do not want to live,no reason to live,life is meaningless,life is pointless,self-harm,self harm,self injury,self-injury,cut myself,cutting,burn myself,hang myself,jump off a building,jump off the roof,overdose,overdose myself,poison myself,hurt myself,bleeding myself,slash wrists,slit my wrists,commit suicide,suicidal,suicidal thoughts,thinking about suicide,thinking of killing myself,thinking about ending my life

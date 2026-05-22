@@ -12,14 +12,14 @@ import ( // Strings and errors.
 ) // End import.
 
 // ComposeBaselineInvitationMessage builds invitation_text + newline + public survey URL.
-func ComposeBaselineInvitationMessage() (string, error) { // Text used in WhatsApp outbound.
-	cfg := GlobalSurveyConfig() // Require loaded survey config.
-	if cfg == nil {             // Missing config.
-		return "", fmt.Errorf("survey config not loaded") // Error.
+func ComposeBaselineInvitationMessage(participantPhone string) (string, error) {
+	cfg := GlobalSurveyConfig()
+	if cfg == nil {
+		return "", fmt.Errorf("survey config not loaded")
 	}
-	url, err := BaselineSurveyURL() // Public link to baseline web form.
-	if err != nil {                 // Missing SURVEY_PUBLIC_BASE_URL or slug.
-		return "", err // Propagate.
+	url, err := BaselineSurveyURLForParticipant(participantPhone)
+	if err != nil {
+		return "", err
 	}
 	body := strings.TrimSpace(cfg.Baseline.InvitationText) // invitation_text from JSON.
 	if body == "" {                                        // Fallback if empty.
@@ -30,7 +30,7 @@ func ComposeBaselineInvitationMessage() (string, error) { // Text used in WhatsA
 
 // SendBaselineInvitation sends baseline invitation + link to the chat JID from the incoming message.
 func SendBaselineInvitation(client *whatsmeow.Client, to types.JID, participantPhone string) error {
-	msg, err := ComposeBaselineInvitationMessage()
+	msg, err := ComposeBaselineInvitationMessage(participantPhone)
 	if err != nil {
 		return err
 	}

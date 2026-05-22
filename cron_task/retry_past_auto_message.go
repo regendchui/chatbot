@@ -79,7 +79,7 @@ func RetryPastDueAutoMessageTask(client *whatsmeow.Client, taskID int64) error {
 			return fmt.Errorf("follow-up survey not found for id %q", task.FollowupSurvey)
 		}
 		var compErr error
-		content, compErr = composeFollowupPromptMessage(fu)
+		content, compErr = composeFollowupPromptMessage(fu, plainPhone)
 		if compErr != nil {
 			return fmt.Errorf("compose follow-up prompt: %w", compErr)
 		}

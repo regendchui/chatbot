@@ -165,7 +165,7 @@ func runAutoFollowupMessageCronOnce(client *whatsmeow.Client) {
 			log.Printf("auto follow-up cron: survey not found for task=%d survey_id=%s", task.ID, task.FollowupSurvey)
 			continue
 		}
-		content, err := composeFollowupPromptMessage(fu)
+		content, err := composeFollowupPromptMessage(fu, plainPhone)
 		if err != nil {
 			log.Printf("auto follow-up cron: compose prompt failed for task=%d survey_id=%s: %v", task.ID, task.FollowupSurvey, err)
 			continue
@@ -180,8 +180,8 @@ func runAutoFollowupMessageCronOnce(client *whatsmeow.Client) {
 	}
 }
 
-func composeFollowupPromptMessage(fu survey.SurveyFollow) (string, error) {
-	url, err := survey.FollowupSurveyURL(fu.LinkSlug)
+func composeFollowupPromptMessage(fu survey.SurveyFollow, participantPhone string) (string, error) {
+	url, err := survey.FollowupSurveyURLForParticipant(fu.LinkSlug, participantPhone)
 	if err != nil {
 		return "", err
 	}

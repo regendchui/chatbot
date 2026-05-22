@@ -74,6 +74,7 @@ func registerAdminPanelRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/configuration", adminRequireAuth(adminConfigurationHandler))
 	mux.HandleFunc("/admin/configuration/update/ai", adminRequireAuth(adminConfigurationUpdateAIHandler))
 	mux.HandleFunc("/admin/configuration/update/voice-message", adminRequireAuth(adminConfigurationUpdateVoiceHandler))
+	mux.HandleFunc("/admin/configuration/update/survey-thankyou", adminRequireAuth(adminConfigurationUpdateSurveyThankYouHandler))
 	mux.HandleFunc("/admin/configuration/update/risk-message", adminRequireAuth(adminConfigurationUpdateRiskMessageHandler))
 	mux.HandleFunc("/admin/configuration/update/behavior", adminRequireAuth(adminConfigurationUpdateBehaviorHandler))
 	mux.HandleFunc("/admin/configuration/update/rag", adminRequireAuth(adminConfigurationUpdateRAGHandler))

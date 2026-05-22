@@ -145,6 +145,21 @@
         <input id="t_consent_agree_label" type="text" value="I agree" />
         <div class="hint">Translation for consent agree/confirm button or checkbox label.</div>
       </div>
+      <div class="col-6">
+        <label>Response summary heading</label>
+        <input id="t_response_summary" type="text" value="Your responses" />
+        <div class="hint">Heading above the response summary on the thank-you page after survey submission.</div>
+      </div>
+      <div class="col-6">
+        <label>Return to WhatsApp message</label>
+        <input id="t_return_to_whatsapp" type="text" value="You may return to WhatsApp." />
+        <div class="hint">Footer text on the thank-you page after survey submission.</div>
+      </div>
+      <div class="col-6">
+        <label>Consent recorded label</label>
+        <input id="t_consent_recorded" type="text" value="Agreed" />
+        <div class="hint">Text shown in the response summary when the participant agreed to the consent form (baseline only).</div>
+      </div>
 
 
     </div>
@@ -666,7 +681,10 @@ function buildConfigObject(){
         interval_twice_per_one_week: document.getElementById('t_interval_twice_per_one_week').value.trim(),
         interval_once_per_two_weeks: document.getElementById('t_interval_once_per_two_weeks').value.trim(),
         consent_form_label: document.getElementById('t_consent_form_label').value.trim(),
-        consent_agree_label: document.getElementById('t_consent_agree_label').value.trim()
+        consent_agree_label: document.getElementById('t_consent_agree_label').value.trim(),
+        response_summary: document.getElementById('t_response_summary').value.trim(),
+        return_to_whatsapp: document.getElementById('t_return_to_whatsapp').value.trim(),
+        consent_recorded: document.getElementById('t_consent_recorded').value.trim()
       },
       phases: phasesToJson()
     },
@@ -819,6 +837,9 @@ function importConfig(){
     document.getElementById('t_interval_once_per_two_weeks').value = t.interval_once_per_two_weeks || 'Interval once per two weeks';
     document.getElementById('t_consent_form_label').value = t.consent_form_label || 'Consent Form';
     document.getElementById('t_consent_agree_label').value = t.consent_agree_label || 'I agree';
+    document.getElementById('t_response_summary').value = t.response_summary || 'Your responses';
+    document.getElementById('t_return_to_whatsapp').value = t.return_to_whatsapp || 'You may return to WhatsApp.';
+    document.getElementById('t_consent_recorded').value = t.consent_recorded || 'Agreed';
     document.getElementById('adminUtcOffset').value = '+8';
     document.getElementById('cronTaskTime').value = convertUtcCronToLocalHHMM(Number(cfg.project?.cron_task_time ?? 1500), parseUtcOffsetToMinutes(document.getElementById('adminUtcOffset').value || '+8'));
     setSelectedWeekdaysByClass('weekday-once-per-week', cfg.project?.chatbot_schedule_questions?.once_per_one_week || []);

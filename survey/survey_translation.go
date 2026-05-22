@@ -17,6 +17,9 @@ const (
 	SurveyTranslationIntervalOncePerOneWeek     = "interval_once_per_one_week"
 	SurveyTranslationIntervalTwicePerOneWeek    = "interval_twice_per_one_week"
 	SurveyTranslationIntervalOncePerTwoWeeks    = "interval_once_per_two_weeks"
+	SurveyTranslationResponseSummary            = "response_summary"
+	SurveyTranslationReturnToWhatsApp           = "return_to_whatsapp"
+	SurveyTranslationConsentRecorded            = "consent_recorded"
 )
 
 // SurveyTranslate returns a translated UI string from project.translations.

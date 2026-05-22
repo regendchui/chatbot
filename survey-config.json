@@ -31,7 +31,10 @@
       "interval_twice_per_one_week": "每星期兩次",
       "interval_once_per_two_weeks": "每兩星期一次",
       "consent_form_label": "同意書",
-      "consent_agree_label": "同意"
+      "consent_agree_label": "同意",
+      "response_summary": "回答記錄",
+      "return_to_whatsapp": "你可以開始使用WhatsApp Chatbot",
+      "consent_recorded": "同意"
     },
     "phases": {
       "enabled": true,

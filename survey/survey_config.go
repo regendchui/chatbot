@@ -3,9 +3,11 @@ package survey
 import ( // Standard library for config I/O.
 	"encoding/json" // Parse survey-config.json.
 	"fmt"           // Format errors.
+	"net/url"       // Append optional phone query parameter to survey links.
 	"os"            // Read config file from disk.
 	"strings"       // Trim paths and strings.
 
+	"whatsapp-bot/common"
 	"whatsapp-bot/db"
 ) // End import.
 
@@ -344,31 +346,57 @@ func SurveyBySlug(slug string) (isBaseline bool, baseline *SurveyBaseline, follo
 	return false, nil, nil, fmt.Errorf("unknown survey slug: %s", s) // Not found.
 } // End SurveyBySlug.
 
-// BaselineSurveyURL returns full HTTPS/HTTP URL for baseline invitation link.
-func BaselineSurveyURL() (string, error) { // Build URL from env base + baseline slug.
-	if globalSurveyConfig == nil { // Require loaded config.
-		return "", fmt.Errorf("survey config not loaded") // Error if missing.
+// surveyURLForSlug builds a public survey URL; appends ?phone= when participantPhone is set.
+func surveyURLForSlug(linkSlug string, participantPhone string) (string, error) {
+	base := strings.TrimRight(strings.TrimSpace(os.Getenv("SURVEY_PUBLIC_BASE_URL")), "/")
+	if base == "" {
+		return "", fmt.Errorf("SURVEY_PUBLIC_BASE_URL is required for survey links")
 	}
-	base := strings.TrimRight(strings.TrimSpace(os.Getenv("SURVEY_PUBLIC_BASE_URL")), "/") // Base URL without trailing slash.
-	if base == "" {                                                                        // Require public base for links in WhatsApp.
-		return "", fmt.Errorf("SURVEY_PUBLIC_BASE_URL is required for survey links") // Config error.
+	slug := strings.TrimSpace(linkSlug)
+	if slug == "" {
+		return "", fmt.Errorf("survey link_slug is empty")
 	}
-	slug := strings.TrimSpace(globalSurveyConfig.Baseline.LinkSlug) // Baseline slug from JSON.
-	if slug == "" {                                                 // Reject empty slug.
-		return "", fmt.Errorf("baseline link_slug is empty in config") // Data error.
-	}
-	return fmt.Sprintf("%s/survey/%s", base, slug), nil // Full survey URL.
-} // End BaselineSurveyURL.
+	raw := fmt.Sprintf("%s/survey/%s", base, slug)
+	return appendSurveyPhoneQuery(raw, participantPhone), nil
+}
 
-// FollowupSurveyURL builds public URL for a follow-up slug.
-func FollowupSurveyURL(linkSlug string) (string, error) { // Build URL for one follow-up.
-	base := strings.TrimRight(strings.TrimSpace(os.Getenv("SURVEY_PUBLIC_BASE_URL")), "/") // Public base.
-	if base == "" {                                                                        // Require base URL.
-		return "", fmt.Errorf("SURVEY_PUBLIC_BASE_URL is required") // Config error.
+func appendSurveyPhoneQuery(rawURL string, participantPhone string) string {
+	phone := common.DigitsOnly(strings.TrimSpace(participantPhone))
+	if phone == "" {
+		return rawURL
 	}
-	s := strings.TrimSpace(linkSlug) // Normalize slug.
-	if s == "" {                     // Reject empty.
-		return "", fmt.Errorf("follow-up link_slug is empty") // Validation error.
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
 	}
-	return fmt.Sprintf("%s/survey/%s", base, s), nil // Full URL.
-} // End FollowupSurveyURL.
+	query := parsed.Query()
+	query.Set("phone", phone)
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+// BaselineSurveyURL returns the baseline survey URL without a phone query parameter.
+func BaselineSurveyURL() (string, error) {
+	if globalSurveyConfig == nil {
+		return "", fmt.Errorf("survey config not loaded")
+	}
+	return surveyURLForSlug(globalSurveyConfig.Baseline.LinkSlug, "")
+}
+
+// BaselineSurveyURLForParticipant returns the baseline survey URL with ?phone= when provided.
+func BaselineSurveyURLForParticipant(participantPhone string) (string, error) {
+	if globalSurveyConfig == nil {
+		return "", fmt.Errorf("survey config not loaded")
+	}
+	return surveyURLForSlug(globalSurveyConfig.Baseline.LinkSlug, participantPhone)
+}
+
+// FollowupSurveyURL builds a follow-up survey URL without a phone query parameter.
+func FollowupSurveyURL(linkSlug string) (string, error) {
+	return surveyURLForSlug(linkSlug, "")
+}
+
+// FollowupSurveyURLForParticipant builds a follow-up survey URL with ?phone= when provided.
+func FollowupSurveyURLForParticipant(linkSlug string, participantPhone string) (string, error) {
+	return surveyURLForSlug(linkSlug, participantPhone)
+}

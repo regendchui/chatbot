@@ -129,7 +129,7 @@ func main() { // Start application setup and keep bot alive.
 		return cron_task.RetryPastDueAutoMessageTask(client, taskID)
 	})
 	admin_panel.SetEnrollmentBaselineInviteHandler(func(participantPhone string) error {
-		msg, err := survey.ComposeBaselineInvitationMessage()
+		msg, err := survey.ComposeBaselineInvitationMessage(participantPhone)
 		if err != nil {
 			return err
 		}
