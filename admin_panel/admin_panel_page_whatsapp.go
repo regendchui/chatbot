@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"html"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -44,13 +45,14 @@ func adminWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg := ""
+	msg := strings.TrimSpace(r.URL.Query().Get("msg"))
+	msgErr := strings.TrimSpace(r.URL.Query().Get("err"))
 	shouldRefresh := strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
 	if shouldRefresh && whatsAppQRRefreshFunc == nil {
-		msg = "QR refresh is not configured."
+		msgErr = "QR refresh is not configured."
 	} else if shouldRefresh && whatsAppQRRefreshFunc != nil {
 		if err := whatsAppQRRefreshFunc(); err != nil {
-			msg = "Failed to refresh QR code: " + err.Error()
+			msgErr = "Failed to refresh QR code: " + err.Error()
 		} else {
 			waitForLatestQRCode(2500 * time.Millisecond)
 			msg = "QR code refreshed."
@@ -62,6 +64,20 @@ func adminWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 		status = whatsAppStatusProvider()
 	}
 
+	// Session gone but no QR yet — request one so the page is usable after external logout.
+	if !status.Authenticated && strings.TrimSpace(status.LatestQRCode) == "" && whatsAppQRRefreshFunc != nil && !shouldRefresh {
+		if err := whatsAppQRRefreshFunc(); err != nil {
+			if msgErr == "" {
+				msgErr = "Failed to request QR code: " + err.Error()
+			}
+		} else {
+			waitForLatestQRCode(2500 * time.Millisecond)
+			if whatsAppStatusProvider != nil {
+				status = whatsAppStatusProvider()
+			}
+		}
+	}
+
 	var b strings.Builder
 	b.WriteString(adminPageHeader("WhatsApp"))
 	b.WriteString(`<h2>WhatsApp</h2>`)
@@ -69,9 +85,12 @@ func adminWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 	if msg != "" {
 		b.WriteString(`<p style="color:#065f46;">` + html.EscapeString(msg) + `</p>`)
 	}
+	if msgErr != "" {
+		b.WriteString(`<p style="color:#b91c1c;">` + html.EscapeString(msgErr) + `</p>`)
+	}
 	b.WriteString(`<p><strong>Connection:</strong> ` + boolLabel(status.Connected, "Connected", "Disconnected") + `</p>`)
 	b.WriteString(`<p><strong>Authenticated:</strong> ` + boolLabel(status.Authenticated, "Yes", "No") + `</p>`)
-	if strings.TrimSpace(status.DeviceID) != "" {
+	if status.Authenticated && strings.TrimSpace(status.DeviceID) != "" {
 		b.WriteString(`<p><strong>Device ID:</strong> <code>` + html.EscapeString(status.DeviceID) + `</code></p>`)
 	}
 	if strings.TrimSpace(status.LastEvent) != "" {
@@ -141,13 +160,13 @@ func adminWhatsAppLogoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if whatsAppLogoutFunc == nil {
-		http.Redirect(w, r, "/admin/whatsapp", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/whatsapp?err="+url.QueryEscape("Logout is not configured."), http.StatusSeeOther)
 		return
 	}
 	if err := whatsAppLogoutFunc(); err != nil {
-		http.Redirect(w, r, "/admin/whatsapp", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/whatsapp?err="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	waitForLatestQRCode(2500 * time.Millisecond)
-	http.Redirect(w, r, "/admin/whatsapp", http.StatusSeeOther)
+	waitForLatestQRCode(3000 * time.Millisecond)
+	http.Redirect(w, r, "/admin/whatsapp?msg="+url.QueryEscape("WhatsApp logged out. Scan the new QR code to reconnect."), http.StatusSeeOther)
 }

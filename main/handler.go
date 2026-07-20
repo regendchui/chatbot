@@ -12,6 +12,7 @@ import ( // Import packages required for receive/handle logic.
 	"whatsapp-bot/AI"
 	"whatsapp-bot/common"
 	"whatsapp-bot/db"
+	"whatsapp-bot/messaging"
 	"whatsapp-bot/survey"
 
 	"go.mau.fi/whatsmeow" // WhatsApp client type needed for reply send.
@@ -281,6 +282,9 @@ func handleIncomingMessage(client *whatsmeow.Client, msg *events.Message) { // H
 } // End handleIncomingMessage function.
 
 func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, senderPhone string, prompt string, latestMedium ai.LatestInboundMedium) {
+	typing := messaging.StartTypingSession(client, replyJID)
+	defer typing.Stop()
+
 	memoryMessages, err := ai.GetLastMessagesForParticipant(senderPhone, ai.GetAIMemoryMessageLimitFromEnv()) // Load participant-scoped chat memory for AI.
 	if err != nil {                                                                // Check memory loading failure.
 		log.Println("Memory load error:", err) // Log error and continue with minimal context.
@@ -307,6 +311,7 @@ func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, sen
 		reply = "Sorry, I am having trouble generating a response right now."
 	}
 
+	typing.Stop() // Clear "..." before the outbound message arrives.
 	if err := sendWhatsAppTextWithReceiver(client, replyJID, reply, senderPhone, common.MessageNatureRegularAIMessage); err != nil {
 		log.Println("Send error:", err)
 	}

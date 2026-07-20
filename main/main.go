@@ -107,16 +107,19 @@ func main() { // Start application setup and keep bot alive.
 	// Build the WhatsApp client using stored device credentials.
 	client := whatsmeow.NewClient(deviceStore, clientLogger)
 	waState := &whatsAppAdminState{}
-	admin_panel.SetWhatsAppStatusProvider(waState.snapshot)
+	admin_panel.SetWhatsAppStatusProvider(func() admin_panel.WhatsAppStatusSnapshot {
+		waState.syncFromClient(client)
+		return waState.snapshot()
+	})
 	admin_panel.SetWhatsAppQRRefreshHandler(func() error {
-		err := refreshWhatsAppQRCode(client, waState)
+		err := refreshWhatsAppQRCode(client, container, waState)
 		if err != nil {
 			waState.setLastError(err.Error())
 		}
 		return err
 	})
 	admin_panel.SetWhatsAppLogoutHandler(func() error {
-		err := logoutWhatsAppSession(client, waState)
+		err := logoutWhatsAppSession(client, container, waState)
 		if err != nil {
 			waState.setLastError(err.Error())
 		}
@@ -147,11 +150,17 @@ func main() { // Start application setup and keep bot alive.
 		},
 	})
 
-	// Register event handler that listens for incoming messages.
+	// Register event handler that listens for incoming messages and session lifecycle.
 	client.AddEventHandler(func(evt interface{}) {
 		switch v := evt.(type) { // Branch based on concrete event type.
 		case *events.Message: // Handle text/caption messages here.
 			handleIncomingMessage(client, v) // Process inbound text and optional auto-reply.
+		case *events.LoggedOut:
+			reason := ""
+			if v != nil {
+				reason = v.Reason.String()
+			}
+			go handleWhatsAppLoggedOutEvent(client, container, waState, reason)
 		}
 	})
 	err = connectWhatsAppWithQR(client, waState) // Connect and start QR watcher when login is needed.

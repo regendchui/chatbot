@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"whatsapp-bot/admin_panel"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store/sqlstore"
 )
 
 type whatsAppAdminState struct {
@@ -67,6 +69,15 @@ func (s *whatsAppAdminState) clearQRCode() {
 	s.mu.Unlock()
 }
 
+// syncFromClient aligns admin UI auth flags with the real whatsmeow device store.
+func (s *whatsAppAdminState) syncFromClient(client *whatsmeow.Client) {
+	if client == nil || client.Store == nil || client.Store.Deleted || client.Store.ID == nil {
+		s.setAuthenticated(false, "")
+		return
+	}
+	s.setAuthenticated(true, client.Store.ID.String())
+}
+
 func (s *whatsAppAdminState) snapshot() admin_panel.WhatsAppStatusSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -95,6 +106,7 @@ func startWhatsAppQRWatcher(qrChan <-chan whatsmeow.QRChannelItem, client *whats
 				}
 				state.setAuthenticated(true, deviceID)
 				state.clearQRCode()
+				state.setLastError("")
 			}
 		}
 	}()
@@ -104,10 +116,12 @@ func connectWhatsAppWithQR(client *whatsmeow.Client, state *whatsAppAdminState) 
 	if client == nil {
 		return fmt.Errorf("whatsapp client is nil")
 	}
-	if client.Store != nil && client.Store.ID != nil {
+	if client.Store != nil && client.Store.ID != nil && !client.Store.Deleted {
 		state.setAuthenticated(true, client.Store.ID.String())
+	} else {
+		state.setAuthenticated(false, "")
 	}
-	if client.Store != nil && client.Store.ID == nil {
+	if client.Store == nil || client.Store.ID == nil || client.Store.Deleted {
 		qrChan, err := client.GetQRChannel(context.Background())
 		if err != nil {
 			return fmt.Errorf("get QR channel: %w", err)
@@ -118,23 +132,50 @@ func connectWhatsAppWithQR(client *whatsmeow.Client, state *whatsAppAdminState) 
 		return err
 	}
 	state.setConnected(true)
-	if client.Store != nil && client.Store.ID != nil {
+	if client.Store != nil && client.Store.ID != nil && !client.Store.Deleted {
 		state.setAuthenticated(true, client.Store.ID.String())
 	}
 	return nil
 }
 
-func refreshWhatsAppQRCode(client *whatsmeow.Client, state *whatsAppAdminState) error {
+// prepareClientForQRPairing ensures the client has a fresh unpaired device store.
+// After Logout/Delete, whatsmeow marks Store.Deleted and Connect() refuses until replaced.
+func prepareClientForQRPairing(client *whatsmeow.Client, container *sqlstore.Container) error {
 	if client == nil {
 		return fmt.Errorf("whatsapp client is nil")
 	}
-	if client.Store != nil && client.Store.ID != nil {
+	if container == nil {
+		return fmt.Errorf("whatsapp session container is nil")
+	}
+	client.Disconnect()
+	needsNewDevice := client.Store == nil || client.Store.Deleted || client.Store.ID != nil
+	if client.Store != nil && !client.Store.Deleted && client.Store.ID != nil {
+		if err := client.Store.Delete(context.Background()); err != nil {
+			return fmt.Errorf("delete local whatsapp session: %w", err)
+		}
+		needsNewDevice = true
+	}
+	if needsNewDevice || client.Store == nil || client.Store.Deleted {
+		client.Store = container.NewDevice()
+	}
+	return nil
+}
+
+func refreshWhatsAppQRCode(client *whatsmeow.Client, container *sqlstore.Container, state *whatsAppAdminState) error {
+	if client == nil {
+		return fmt.Errorf("whatsapp client is nil")
+	}
+	if client.Store != nil && !client.Store.Deleted && client.Store.ID != nil {
 		return fmt.Errorf("whatsapp already logged in")
 	}
+	if err := prepareClientForQRPairing(client, container); err != nil {
+		return err
+	}
 	state.setLastError("")
+	state.setAuthenticated(false, "")
 	state.clearQRCode()
 	state.setConnected(false)
-	client.Disconnect()
+
 	qrChan, err := client.GetQRChannel(context.Background())
 	if err != nil {
 		return fmt.Errorf("get fresh QR channel: %w", err)
@@ -147,26 +188,59 @@ func refreshWhatsAppQRCode(client *whatsmeow.Client, state *whatsAppAdminState) 
 	return nil
 }
 
-func logoutWhatsAppSession(client *whatsmeow.Client, state *whatsAppAdminState) error {
+func logoutWhatsAppSession(client *whatsmeow.Client, container *sqlstore.Container, state *whatsAppAdminState) error {
 	if client == nil {
 		return fmt.Errorf("whatsapp client is nil")
 	}
-	if client.Store == nil || client.Store.ID == nil {
-		return fmt.Errorf("whatsapp is not logged in")
-	}
 
 	state.setLastError("")
-	if err := client.Logout(context.Background()); err != nil {
-		return fmt.Errorf("logout whatsapp session: %w", err)
+
+	// Session already gone (unlinked from phone / deleted store) — reset UI and request QR.
+	if client.Store == nil || client.Store.Deleted || client.Store.ID == nil {
+		state.setConnected(false)
+		state.setAuthenticated(false, "")
+		state.clearQRCode()
+		state.setLastEvent("already_logged_out")
+		if err := refreshWhatsAppQRCode(client, container, state); err != nil {
+			return fmt.Errorf("session already cleared but failed to request new QR: %w", err)
+		}
+		return nil
 	}
-	client.Disconnect()
+
+	if err := client.Logout(context.Background()); err != nil {
+		// Force local cleanup when server logout fails (dead websocket / already unpaired).
+		log.Printf("whatsapp logout request failed, forcing local session clear: %v", err)
+		client.Disconnect()
+		if client.Store != nil && !client.Store.Deleted {
+			if delErr := client.Store.Delete(context.Background()); delErr != nil {
+				return fmt.Errorf("logout failed (%v) and local clear failed: %w", err, delErr)
+			}
+		}
+		state.setLastEvent("logout_forced")
+	} else {
+		state.setLastEvent("logout")
+	}
+
 	state.setConnected(false)
 	state.setAuthenticated(false, "")
 	state.clearQRCode()
-	state.setLastEvent("logout")
 
-	if err := refreshWhatsAppQRCode(client, state); err != nil {
+	if err := refreshWhatsAppQRCode(client, container, state); err != nil {
 		return fmt.Errorf("logged out but failed to request new QR: %w", err)
 	}
 	return nil
+}
+
+// handleWhatsAppLoggedOutEvent keeps admin UI in sync when the phone unlinks this device.
+func handleWhatsAppLoggedOutEvent(client *whatsmeow.Client, container *sqlstore.Container, state *whatsAppAdminState, reason string) {
+	log.Printf("whatsapp logged out externally: %s", strings.TrimSpace(reason))
+	state.setConnected(false)
+	state.setAuthenticated(false, "")
+	state.clearQRCode()
+	state.setLastEvent("logged_out")
+	state.setLastError("")
+	if err := refreshWhatsAppQRCode(client, container, state); err != nil {
+		state.setLastError("logged out; failed to request new QR: " + err.Error())
+		log.Printf("whatsapp QR refresh after logout failed: %v", err)
+	}
 }
