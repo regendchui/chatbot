@@ -462,7 +462,7 @@ certbot certificates
 
 ```
 Enter email address (used for urgent renewal and security notices)
- (Enter 'c' to cancel): regend.cwc@gmail.com
+ (Enter 'c' to cancel): your_email@gmail.com
 
 
 ### H) SSL renewal (Let's Encrypt)
