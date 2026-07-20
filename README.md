@@ -389,14 +389,14 @@ Create `/etc/nginx/sites-available/chatbot` with Nano:
 sudo nano /etc/nginx/sites-available/chatbot
 ```
 
-2) Paste this config into Nano:
+2) Paste this config into Nano (replace `YOUR_DOMAIN` with your domain, e.g. `example.com`):
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
 
-    server_name hku-youth-typology.cloud www.hku-youth-typology.cloud;
+    server_name YOUR_DOMAIN www.YOUR_DOMAIN;
 
     return 301 https://$host$request_uri;
 }
@@ -405,10 +405,10 @@ server {
     listen 443 ssl;
     listen [::]:443 ssl;
 
-    server_name hku-youth-typology.cloud www.hku-youth-typology.cloud;
+    server_name YOUR_DOMAIN www.YOUR_DOMAIN;
 
-    ssl_certificate /etc/letsencrypt/live/hku-youth-typology.cloud/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/hku-youth-typology.cloud/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem;
 
     location /survey/ {
         proxy_pass http://127.0.0.1:8080;
@@ -452,7 +452,7 @@ sudo systemctl reload nginx
 Issue TLS certificate:
 
 ```bash
-certbot --nginx -d regendstudio.cloud -d www.regendstudio.cloud
+certbot --nginx -d YOUR_DOMAIN -d www.YOUR_DOMAIN
 ```
 
 Verify certificate status:
