@@ -57,6 +57,14 @@ func adminConversationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	b.WriteString(`</table>`)
 	b.WriteString(adminTableOuterWrapClose())
+
+	engagementHTML, engagementErr := adminRenderEngagementTableHTML(phoneFilter)
+	if engagementErr != nil {
+		http.Error(w, engagementErr.Error(), http.StatusInternalServerError)
+		return
+	}
+	b.WriteString(engagementHTML)
+
 	b.WriteString(adminPageFooter())
 	adminWriteHTML(w, b.String())
 }

@@ -30,6 +30,7 @@ func registerAdminPanelRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/home/", adminRequireAuth(adminHomePageHandler))
 	mux.HandleFunc("/admin/table/conversation", adminRequireAuth(adminConversationHandler))
 	mux.HandleFunc("/admin/table/conversation/export", adminRequireAuth(adminConversationExportCSVHandler))
+	mux.HandleFunc("/admin/table/conversation/engagement/export", adminRequireAuth(adminEngagementExportCSVHandler))
 	mux.HandleFunc("/admin/table/conversation/delete-one", adminRequireAuth(adminConversationDeleteOneHandler))
 	mux.HandleFunc("/admin/table/conversation/delete-by-phone", adminRequireAuth(adminConversationDeleteByPhoneHandler))
 	mux.HandleFunc("/admin/survey-responses", adminRequireAuth(adminSurveyResponsesHandler))

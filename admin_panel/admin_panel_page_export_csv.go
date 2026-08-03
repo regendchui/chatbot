@@ -35,6 +35,38 @@ func adminConversationExportCSVHandler(w http.ResponseWriter, r *http.Request) {
 	adminWriteCSV(w, "conversation.csv", headers, data)
 }
 
+func adminEngagementExportCSVHandler(w http.ResponseWriter, r *http.Request) {
+	phoneFilter := common.DigitsOnly(strings.TrimSpace(r.URL.Query().Get("phone")))
+	rows, weekCount, _, err := adminLoadEngagementRows(phoneFilter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	headers := make([]string, 0, 2+weekCount*2)
+	headers = append(headers, "participant_name", "phone_number")
+	for i := 1; i <= weekCount; i++ {
+		headers = append(headers, fmt.Sprintf("reach_week_%d", i), fmt.Sprintf("message_count_week_%d", i))
+	}
+	data := make([][]string, 0, len(rows))
+	for _, row := range rows {
+		record := make([]string, 0, 2+weekCount*2)
+		record = append(record, row.Name, row.Phone)
+		for i := 0; i < weekCount; i++ {
+			reached := false
+			count := 0
+			if i < len(row.WeekReached) {
+				reached = row.WeekReached[i]
+			}
+			if i < len(row.WeekCounts) {
+				count = row.WeekCounts[i]
+			}
+			record = append(record, fmt.Sprintf("%t", reached), fmt.Sprintf("%d", count))
+		}
+		data = append(data, record)
+	}
+	adminWriteCSV(w, "engagement.csv", headers, data)
+}
+
 func adminMetaExportCSVHandler(w http.ResponseWriter, r *http.Request) {
 	phoneFilter := common.DigitsOnly(strings.TrimSpace(r.URL.Query().Get("phone")))
 	rows, headers, err := adminLoadMetaRows(phoneFilter)
