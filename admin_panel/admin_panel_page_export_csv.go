@@ -42,15 +42,15 @@ func adminEngagementExportCSVHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	headers := make([]string, 0, 2+weekCount*2)
-	headers = append(headers, "participant_name", "phone_number")
+	headers := make([]string, 0, 3+weekCount*2)
+	headers = append(headers, "participant_name", "phone_number", "exclude_from_engagement")
 	for i := 1; i <= weekCount; i++ {
 		headers = append(headers, fmt.Sprintf("reach_week_%d", i), fmt.Sprintf("message_count_week_%d", i))
 	}
 	data := make([][]string, 0, len(rows))
 	for _, row := range rows {
-		record := make([]string, 0, 2+weekCount*2)
-		record = append(record, row.Name, row.Phone)
+		record := make([]string, 0, 3+weekCount*2)
+		record = append(record, row.Name, row.Phone, fmt.Sprintf("%t", row.ExcludeFromEngagement))
 		for i := 0; i < weekCount; i++ {
 			reached := false
 			count := 0

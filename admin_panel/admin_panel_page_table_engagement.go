@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"html"
 	"math"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,13 +16,14 @@ import (
 )
 
 type adminEngagementRow struct {
-	Name        string
-	Phone       string
-	BaselineAt  time.Time
-	WeekReached []bool
-	WeekCounts  []int
-	PeriodDays  int
-	WeekCount   int
+	Name               string
+	Phone              string
+	BaselineAt         time.Time
+	WeekReached        []bool
+	WeekCounts         []int
+	PeriodDays         int
+	WeekCount          int
+	ExcludeFromEngagement bool
 }
 
 func adminEngagementWeekCount(periodDays int) int {
@@ -46,7 +49,7 @@ func adminLoadEngagementRows(phoneFilter string) (rows []adminEngagementRow, wee
 	}
 
 	metaRows, err := db.DB.Query(context.Background(), `
-SELECT participant_phone, participant_name, baseline_completed_ts
+SELECT participant_phone, participant_name, baseline_completed_ts, exclude_from_engagement
 FROM meta
 WHERE baseline_completed_ts IS NOT NULL
 ORDER BY baseline_completed_ts ASC, id ASC`)
@@ -60,7 +63,8 @@ ORDER BY baseline_completed_ts ASC, id ASC`)
 	for metaRows.Next() {
 		var encPhone, name string
 		var baselineAt time.Time
-		if err := metaRows.Scan(&encPhone, &name, &baselineAt); err != nil {
+		var excludeFromEngagement bool
+		if err := metaRows.Scan(&encPhone, &name, &baselineAt, &excludeFromEngagement); err != nil {
 			return nil, 0, 0, fmt.Errorf("scan baseline-complete participant: %w", err)
 		}
 		plainPhone, decErr := common.DecryptPhone(encPhone)
@@ -89,13 +93,14 @@ ORDER BY baseline_completed_ts ASC, id ASC`)
 			return nil, 0, 0, countErr
 		}
 		out = append(out, adminEngagementRow{
-			Name:        strings.TrimSpace(name),
-			Phone:       digits,
-			BaselineAt:  baselineUTC,
-			WeekReached: reached,
-			WeekCounts:  counts,
-			PeriodDays:  periodDays,
-			WeekCount:   weekCount,
+			Name:                  strings.TrimSpace(name),
+			Phone:                 digits,
+			BaselineAt:            baselineUTC,
+			WeekReached:           reached,
+			WeekCounts:            counts,
+			PeriodDays:            periodDays,
+			WeekCount:             weekCount,
+			ExcludeFromEngagement: excludeFromEngagement,
 		})
 	}
 	if err := metaRows.Err(); err != nil {
@@ -149,6 +154,17 @@ WHERE participant_phone = $1
 	return counts, nil
 }
 
+func adminEngagementRowsForRate(rows []adminEngagementRow) []adminEngagementRow {
+	out := make([]adminEngagementRow, 0, len(rows))
+	for _, row := range rows {
+		if row.ExcludeFromEngagement {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
 func adminEngagementRates(rows []adminEngagementRow, weekCount int) []float64 {
 	rates := make([]float64, weekCount)
 	if weekCount <= 0 {
@@ -157,6 +173,9 @@ func adminEngagementRates(rows []adminEngagementRow, weekCount int) []float64 {
 	reached := make([]int, weekCount)
 	texted := make([]int, weekCount)
 	for _, row := range rows {
+		if row.ExcludeFromEngagement {
+			continue
+		}
 		for i := 0; i < weekCount && i < len(row.WeekReached); i++ {
 			if !row.WeekReached[i] {
 				continue
@@ -179,26 +198,33 @@ func adminEngagementRates(rows []adminEngagementRow, weekCount int) []float64 {
 
 // adminGenerateEngagementRateGraphHTML builds an SVG bar chart of weekly engagement rate.
 // engagement rate = (participants who texted that week) / (participants who reached that week) * 100.
+// Participants marked exclude_from_engagement (test accounts) are omitted from the rate.
 func adminGenerateEngagementRateGraphHTML(rows []adminEngagementRow, weekCount int) string {
 	if weekCount <= 0 {
 		return `<p>No week columns available for the engagement rate graph.</p>`
 	}
-	rates := adminEngagementRates(rows, weekCount)
+	included := adminEngagementRowsForRate(rows)
+	rates := adminEngagementRates(included, weekCount)
+	excludedCount := len(rows) - len(included)
 
 	const (
-		width   = 720
-		height  = 320
-		padL    = 56
-		padR    = 24
-		padT    = 28
-		padB    = 48
+		width  = 720
+		height = 320
+		padL   = 56
+		padR   = 24
+		padT   = 28
+		padB   = 48
 	)
 	plotW := float64(width - padL - padR)
 	plotH := float64(height - padT - padB)
 
 	var b strings.Builder
 	b.WriteString(`<h3 style="margin-top:28px;">Engagement Rate by Week</h3>`)
-	b.WriteString(`<p style="color:#475569;">Engagement rate = (participants who sent ≥1 inbound message that week) ÷ (participants who have reached that week).</p>`)
+	b.WriteString(`<p style="color:#475569;">Engagement rate = (participants who sent ≥1 inbound message that week) ÷ (participants who have reached that week). Test accounts marked “Exclude from rate” are not counted.`)
+	if excludedCount > 0 {
+		b.WriteString(fmt.Sprintf(` Currently excluding %d participant(s).`, excludedCount))
+	}
+	b.WriteString(`</p>`)
 	b.WriteString(fmt.Sprintf(
 		`<svg viewBox="0 0 %d %d" width="100%%" style="max-width:%dpx;height:auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;display:block;margin:12px 0;">`,
 		width, height, width,
@@ -275,6 +301,50 @@ func adminGenerateEngagementRateGraphHTML(rows []adminEngagementRow, weekCount i
 	return b.String()
 }
 
+func adminEngagementExcludeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, "/admin/table/conversation?msg="+url.QueryEscape("Invalid form."), http.StatusSeeOther)
+		return
+	}
+	phoneFilter := common.DigitsOnly(strings.TrimSpace(r.FormValue("phone_filter")))
+	phone := common.DigitsOnly(strings.TrimSpace(r.FormValue("participant_phone")))
+	action := strings.TrimSpace(r.FormValue("action"))
+	redir := "/admin/table/conversation"
+	if phoneFilter != "" {
+		redir += "?phone=" + url.QueryEscape(phoneFilter)
+	}
+	redirWithMsg := func(msg string) {
+		sep := "?"
+		if strings.Contains(redir, "?") {
+			sep = "&"
+		}
+		http.Redirect(w, r, redir+sep+"msg="+url.QueryEscape(msg), http.StatusSeeOther)
+	}
+	if phone == "" {
+		redirWithMsg("Participant phone is required.")
+		return
+	}
+	exclude := action != "include"
+	n, err := db.SetExcludeFromEngagementForPhoneDigits(phone, exclude)
+	if err != nil {
+		redirWithMsg("Failed to update engagement exclusion: " + err.Error())
+		return
+	}
+	if n == 0 {
+		redirWithMsg("No meta row updated for that phone.")
+		return
+	}
+	if exclude {
+		redirWithMsg(fmt.Sprintf("%s marked as test account (excluded from engagement rate).", phone))
+		return
+	}
+	redirWithMsg(fmt.Sprintf("%s included in engagement rate again.", phone))
+}
+
 func adminRenderEngagementTableHTML(phoneFilter string) (string, error) {
 	rows, weekCount, periodDays, err := adminLoadEngagementRows(phoneFilter)
 	if err != nil {
@@ -288,17 +358,17 @@ func adminRenderEngagementTableHTML(phoneFilter string) (string, error) {
 		return b.String(), nil
 	}
 	b.WriteString(fmt.Sprintf(
-		`<p style="color:#475569;">Per week: <strong>Reach</strong> (whether the participant has entered that intervention week) and <strong>Message count</strong> (inbound only, after baseline). Period: %d day(s) → %d week(s).</p>`,
+		`<p style="color:#475569;">Per week: <strong>Reach</strong> (whether the participant has entered that intervention week) and <strong>Message count</strong> (inbound only, after baseline). Period: %d day(s) → %d week(s). Use <strong>Exclude from rate</strong> for test accounts so they stay visible in the table but are omitted from the engagement-rate graph.</p>`,
 		periodDays, weekCount,
 	))
 	b.WriteString(`<p><a href="/admin/table/conversation/engagement/export?phone=` + html.EscapeString(phoneFilter) + `">Export engagement table as CSV</a></p>`)
 	b.WriteString(adminTableOuterWrapOpen(len(rows)))
-	b.WriteString(`<table><tr><th>Participant Name</th><th>Phone Number</th>`)
+	b.WriteString(`<table><tr><th>Participant Name</th><th>Phone Number</th><th>In rate?</th>`)
 	for i := 1; i <= weekCount; i++ {
 		b.WriteString(fmt.Sprintf(`<th>Reach Week %d</th><th>Message Count Week %d</th>`, i, i))
 	}
-	b.WriteString(`</tr>`)
-	colspan := 2 + weekCount*2
+	b.WriteString(`<th>Actions</th></tr>`)
+	colspan := 3 + weekCount*2 + 1
 	if len(rows) == 0 {
 		b.WriteString(`<tr><td colspan="` + fmt.Sprintf("%d", colspan) + `">No baseline-complete participants found.</td></tr>`)
 	} else {
@@ -307,9 +377,18 @@ func adminRenderEngagementTableHTML(phoneFilter string) (string, error) {
 			if name == "" {
 				name = "—"
 			}
-			b.WriteString("<tr>")
+			rowStyle := ""
+			if row.ExcludeFromEngagement {
+				rowStyle = ` style="background:#f8fafc;color:#64748b;"`
+			}
+			b.WriteString("<tr" + rowStyle + ">")
 			b.WriteString("<td>" + html.EscapeString(name) + "</td>")
 			b.WriteString("<td>" + html.EscapeString(row.Phone) + "</td>")
+			if row.ExcludeFromEngagement {
+				b.WriteString(`<td>No (test)</td>`)
+			} else {
+				b.WriteString(`<td>Yes</td>`)
+			}
 			for i := 0; i < weekCount; i++ {
 				reached := false
 				count := 0
@@ -322,6 +401,19 @@ func adminRenderEngagementTableHTML(phoneFilter string) (string, error) {
 				b.WriteString("<td>" + boolLabel(reached, "true", "false") + "</td>")
 				b.WriteString("<td>" + fmt.Sprintf("%d", count) + "</td>")
 			}
+			b.WriteString(`<td>`)
+			b.WriteString(`<form method="post" action="/admin/table/conversation/engagement/exclude" style="margin:0;">`)
+			b.WriteString(`<input type="hidden" name="phone_filter" value="` + html.EscapeString(phoneFilter) + `">`)
+			b.WriteString(`<input type="hidden" name="participant_phone" value="` + html.EscapeString(row.Phone) + `">`)
+			if row.ExcludeFromEngagement {
+				b.WriteString(`<input type="hidden" name="action" value="include">`)
+				b.WriteString(`<button type="submit">Include in rate</button>`)
+			} else {
+				b.WriteString(`<input type="hidden" name="action" value="exclude">`)
+				b.WriteString(`<button type="submit" style="background:#b45309;border-color:#92400e;color:#fff;">Exclude from rate</button>`)
+			}
+			b.WriteString(`</form>`)
+			b.WriteString(`</td>`)
 			b.WriteString("</tr>")
 		}
 	}

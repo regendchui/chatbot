@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS meta (
     participant_name TEXT NOT NULL DEFAULT '',
     message_interval TEXT NOT NULL DEFAULT '',
     end_message BOOLEAN NOT NULL DEFAULT FALSE,
-    verification BOOLEAN NOT NULL DEFAULT FALSE
+    verification BOOLEAN NOT NULL DEFAULT FALSE,
+    exclude_from_engagement BOOLEAN NOT NULL DEFAULT FALSE
 );`
 
 	_, err := DB.Exec(context.Background(), query) // Execute meta table DDL.
@@ -38,6 +39,9 @@ CREATE TABLE IF NOT EXISTS meta (
 	}
 	if _, err := DB.Exec(context.Background(), `ALTER TABLE meta ADD COLUMN IF NOT EXISTS verification BOOLEAN NOT NULL DEFAULT FALSE`); err != nil {
 		return fmt.Errorf("alter meta add verification: %w", err)
+	}
+	if _, err := DB.Exec(context.Background(), `ALTER TABLE meta ADD COLUMN IF NOT EXISTS exclude_from_engagement BOOLEAN NOT NULL DEFAULT FALSE`); err != nil {
+		return fmt.Errorf("alter meta add exclude_from_engagement: %w", err)
 	}
 	return nil
 } // End EnsureMetaTableExists function.
@@ -408,6 +412,30 @@ func MarkParticipantUnverifiedForPhoneDigits(respondentDigits string) (int64, er
 	tag, err := DB.Exec(context.Background(), q, args...)
 	if err != nil {
 		return 0, fmt.Errorf("mark participant unverified: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
+// SetExcludeFromEngagementForPhoneDigits marks whether a participant is excluded from engagement-rate stats (e.g. test accounts).
+func SetExcludeFromEngagementForPhoneDigits(respondentDigits string, exclude bool) (int64, error) {
+	ids, err := metaIDsForRespondentDigits(respondentDigits)
+	if err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("no meta row matches phone %s", common.DigitsOnly(strings.TrimSpace(respondentDigits)))
+	}
+	ph := make([]string, len(ids))
+	args := make([]interface{}, 0, len(ids)+1)
+	args = append(args, exclude)
+	for i, id := range ids {
+		ph[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, id)
+	}
+	q := fmt.Sprintf(`UPDATE meta SET exclude_from_engagement = $1 WHERE id IN (%s)`, strings.Join(ph, ","))
+	tag, err := DB.Exec(context.Background(), q, args...)
+	if err != nil {
+		return 0, fmt.Errorf("set exclude_from_engagement: %w", err)
 	}
 	return tag.RowsAffected(), nil
 }

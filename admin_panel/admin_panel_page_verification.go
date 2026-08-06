@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -141,10 +142,13 @@ func adminVerificationApproveInternal(w http.ResponseWriter, r *http.Request, sh
 		return
 	}
 	if shouldSendAI && updatedRows > 0 && verificationApprovedFunc != nil {
-		if err := verificationApprovedFunc(phone); err != nil {
-			http.Redirect(w, r, "/admin/verification?msg=Participant+verified+but+AI+initiation+message+failed.", http.StatusSeeOther)
-			return
-		}
+		go func(p string) {
+			if err := verificationApprovedFunc(p); err != nil {
+				log.Printf("admin verification approve AI send (phone=%s): %v", p, err)
+			}
+		}(phone)
+		http.Redirect(w, r, "/admin/verification?msg="+url.QueryEscape("Participant verified. AI initiation message is sending in the background."), http.StatusSeeOther)
+		return
 	}
 	if shouldSendAI {
 		http.Redirect(w, r, "/admin/verification?msg=Participant+verified.", http.StatusSeeOther)
