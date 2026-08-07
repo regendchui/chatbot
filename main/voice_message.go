@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strings"
@@ -32,8 +33,8 @@ const (
 var ErrVoiceMessageNoSpeech = errors.New("voice message has no meaningful speech")
 
 type openRouterSTTRequest struct {
-	Model      string              `json:"model"`
-	InputAudio openRouterSTTAudio  `json:"input_audio"`
+	Model      string             `json:"model"`
+	InputAudio openRouterSTTAudio `json:"input_audio"`
 }
 
 type openRouterSTTAudio struct {
@@ -41,7 +42,7 @@ type openRouterSTTAudio struct {
 	Format string `json:"format"`
 }
 
-type openRouterSTTResponse struct {
+type sttResponse struct {
 	Text string `json:"text"`
 }
 
@@ -260,8 +261,88 @@ func transcribeVoiceMessageAudio(audio []byte, format string) (string, error) {
 	if apiKey == "" {
 		return "", fmt.Errorf("OPENROUTER_API_KEY is required for voice transcription")
 	}
+	if len(audio) == 0 {
+		return "", fmt.Errorf("audio payload is empty")
+	}
 
 	model := voiceMessageModel()
+	endpoint := voiceTranscriptionURL()
+	format = strings.TrimSpace(strings.ToLower(format))
+	if format == "" {
+		format = "ogg"
+	}
+
+	// Prefer OpenAI-compatible multipart (works on CrazyRouter and OpenRouter).
+	text, multipartErr := transcribeVoiceMultipart(endpoint, apiKey, model, audio, format)
+	if multipartErr == nil {
+		return text, nil
+	}
+
+	// Fallback: OpenRouter-style JSON base64 input_audio (OpenRouter docs; not used by CrazyRouter).
+	text, jsonErr := transcribeVoiceJSONInputAudio(endpoint, apiKey, model, audio, format)
+	if jsonErr == nil {
+		return text, nil
+	}
+
+	return "", fmt.Errorf("transcription failed (multipart: %v; json: %v)", multipartErr, jsonErr)
+}
+
+func voiceSTTHeaders(req *http.Request, apiKey string, contentType string) {
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if referer := strings.TrimSpace(os.Getenv("OPENROUTER_SITE_URL")); referer != "" {
+		req.Header.Set("HTTP-Referer", referer)
+	}
+	if title := strings.TrimSpace(os.Getenv("OPENROUTER_APP_NAME")); title != "" {
+		req.Header.Set("X-Title", title)
+	}
+}
+
+func transcribeVoiceMultipart(endpoint, apiKey, model string, audio []byte, format string) (string, error) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	filename := "audio." + format
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return "", fmt.Errorf("create multipart file field: %w", err)
+	}
+	if _, err := part.Write(audio); err != nil {
+		return "", fmt.Errorf("write multipart audio: %w", err)
+	}
+	if err := writer.WriteField("model", model); err != nil {
+		return "", fmt.Errorf("write multipart model: %w", err)
+	}
+	_ = writer.WriteField("response_format", "json")
+	if err := writer.Close(); err != nil {
+		return "", fmt.Errorf("close multipart writer: %w", err)
+	}
+
+	request, err := http.NewRequest(http.MethodPost, endpoint, &body)
+	if err != nil {
+		return "", fmt.Errorf("create multipart transcription request: %w", err)
+	}
+	voiceSTTHeaders(request, apiKey, writer.FormDataContentType())
+
+	httpClient := &http.Client{Timeout: 120 * time.Second}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("call multipart transcription API: %w", err)
+	}
+	defer response.Body.Close()
+
+	bodyBytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", fmt.Errorf("read multipart transcription response: %w", err)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return "", fmt.Errorf("status %d: %s", response.StatusCode, strings.TrimSpace(string(bodyBytes)))
+	}
+	return parseSTTResponseText(bodyBytes)
+}
+
+func transcribeVoiceJSONInputAudio(endpoint, apiKey, model string, audio []byte, format string) (string, error) {
 	payload := openRouterSTTRequest{
 		Model: model,
 		InputAudio: openRouterSTTAudio{
@@ -271,40 +352,35 @@ func transcribeVoiceMessageAudio(audio []byte, format string) (string, error) {
 	}
 	requestJSON, err := json.Marshal(payload)
 	if err != nil {
-		return "", fmt.Errorf("marshal transcription request: %w", err)
+		return "", fmt.Errorf("marshal json transcription request: %w", err)
 	}
 
-	url := voiceTranscriptionURL()
-	httpClient := &http.Client{Timeout: 120 * time.Second}
-	request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(requestJSON))
+	request, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(requestJSON))
 	if err != nil {
-		return "", fmt.Errorf("create transcription request: %w", err)
+		return "", fmt.Errorf("create json transcription request: %w", err)
 	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+apiKey)
-	if referer := strings.TrimSpace(os.Getenv("OPENROUTER_SITE_URL")); referer != "" {
-		request.Header.Set("HTTP-Referer", referer)
-	}
-	if title := strings.TrimSpace(os.Getenv("OPENROUTER_APP_NAME")); title != "" {
-		request.Header.Set("X-Title", title)
-	}
+	voiceSTTHeaders(request, apiKey, "application/json")
 
+	httpClient := &http.Client{Timeout: 120 * time.Second}
 	response, err := httpClient.Do(request)
 	if err != nil {
-		return "", fmt.Errorf("call OpenRouter transcription API: %w", err)
+		return "", fmt.Errorf("call json transcription API: %w", err)
 	}
 	defer response.Body.Close()
 
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		return "", fmt.Errorf("read transcription response: %w", err)
+		return "", fmt.Errorf("read json transcription response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("OpenRouter transcription API error status %d: %s", response.StatusCode, strings.TrimSpace(string(bodyBytes)))
+		return "", fmt.Errorf("status %d: %s", response.StatusCode, strings.TrimSpace(string(bodyBytes)))
 	}
+	return parseSTTResponseText(bodyBytes)
+}
 
-	var result openRouterSTTResponse
-	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+func parseSTTResponseText(body []byte) (string, error) {
+	var result sttResponse
+	if err := json.Unmarshal(body, &result); err != nil {
 		return "", fmt.Errorf("unmarshal transcription response: %w", err)
 	}
 	return strings.TrimSpace(result.Text), nil
@@ -317,7 +393,10 @@ func voiceTranscriptionURL() string {
 	if custom := strings.TrimSpace(os.Getenv("VOICE_MESSAGE_TRANSCRIPTION_URL")); custom != "" {
 		return custom
 	}
-	openRouterURL := strings.TrimSpace(os.Getenv("OPENROUTER_URL"))
+	openRouterURL := strings.TrimSpace(db.GetProjectSettingString("OPENROUTER_URL", ""))
+	if openRouterURL == "" {
+		openRouterURL = strings.TrimSpace(os.Getenv("OPENROUTER_URL"))
+	}
 	if openRouterURL != "" {
 		if strings.Contains(openRouterURL, "/chat/completions") {
 			return strings.Replace(openRouterURL, "/chat/completions", "/audio/transcriptions", 1)

@@ -119,7 +119,10 @@ func GenerateAIResponse(incomingText string, memory []common.Message, surveyCont
 		return "", fmt.Errorf("marshal OpenRouter request: %w", err) // Return wrapped marshal error.
 	}
 
-	url := strings.TrimSpace(os.Getenv("OPENROUTER_URL"))
+	url := strings.TrimSpace(db.GetProjectSettingString("OPENROUTER_URL", ""))
+	if url == "" {
+		url = strings.TrimSpace(os.Getenv("OPENROUTER_URL"))
+	}
 	if url == "" {
 		url = defaultOpenRouterURL
 	}

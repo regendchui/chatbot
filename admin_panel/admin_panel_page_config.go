@@ -47,6 +47,7 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<p><label>AI_SYSTEM_PROMPT<br><textarea name="AI_SYSTEM_PROMPT" rows="6" cols="120">` + html.EscapeString(envVars["AI_SYSTEM_PROMPT"]) + `</textarea></label></p>`)
 	b.WriteString(`<p><label>AI_MEMORY_MESSAGE_LIMIT<br><input type="number" min="1" step="1" inputmode="numeric" name="AI_MEMORY_MESSAGE_LIMIT" value="` + html.EscapeString(envVars["AI_MEMORY_MESSAGE_LIMIT"]) + `" required></label></p>`)
 	b.WriteString(`<p><label>OPENROUTER_MODEL<br><input name="OPENROUTER_MODEL" value="` + html.EscapeString(envVars["OPENROUTER_MODEL"]) + `" style="width:100%;max-width:520px;" required></label></p>`)
+	b.WriteString(`<p><label>OPENROUTER_URL (chat completions endpoint)<br><input name="OPENROUTER_URL" value="` + html.EscapeString(envVars["OPENROUTER_URL"]) + `" style="width:100%;max-width:720px;" required placeholder="https://openrouter.ai/api/v1/chat/completions"></label></p>`)
 	b.WriteString(`<p><button type="submit">Save AI settings</button></p>`)
 	b.WriteString(`</form>`)
 
@@ -200,15 +201,21 @@ func adminConfigurationUpdateAIHandler(w http.ResponseWriter, r *http.Request) {
 		adminConfigRedirect(w, r, "OPENROUTER_MODEL is required.")
 		return
 	}
+	openRouterURL := strings.TrimSpace(r.FormValue("OPENROUTER_URL"))
+	if openRouterURL == "" {
+		adminConfigRedirect(w, r, "OPENROUTER_URL is required.")
+		return
+	}
 	if err := db.UpdateProjectEnvVariables(map[string]string{
 		"AI_SYSTEM_PROMPT":        strings.TrimSpace(r.FormValue("AI_SYSTEM_PROMPT")),
 		"AI_MEMORY_MESSAGE_LIMIT": memoryLimit,
 		"OPENROUTER_MODEL":        openRouterModel,
+		"OPENROUTER_URL":          openRouterURL,
 	}); err != nil {
 		adminConfigRedirect(w, r, "Failed to save AI settings.")
 		return
 	}
-	adminRecordConfigUpdateHistory(r, "update_ai_settings", "Updated AI_SYSTEM_PROMPT, AI_MEMORY_MESSAGE_LIMIT, and OPENROUTER_MODEL")
+	adminRecordConfigUpdateHistory(r, "update_ai_settings", "Updated AI_SYSTEM_PROMPT, AI_MEMORY_MESSAGE_LIMIT, OPENROUTER_MODEL, and OPENROUTER_URL")
 	adminConfigRedirect(w, r, "AI settings updated.")
 }
 

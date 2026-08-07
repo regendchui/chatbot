@@ -99,17 +99,35 @@ func ragMinSimilarity() float64 {
 func ragEmbeddingModel() string {
 	model := strings.TrimSpace(db.GetProjectSettingString("RAG_EMBEDDING_MODEL", "openai/text-embedding-3-small"))
 	if model == "" {
+		model = strings.TrimSpace(os.Getenv("RAG_EMBEDDING_MODEL"))
+	}
+	if model == "" {
 		return "openai/text-embedding-3-small"
 	}
 	return model
 }
 
 func ragEmbeddingURL() string {
-	url := strings.TrimSpace(db.GetProjectSettingString("RAG_EMBEDDING_URL", defaultRAGEmbeddingURL))
-	if url == "" {
-		return defaultRAGEmbeddingURL
+	if url := strings.TrimSpace(db.GetProjectSettingString("RAG_EMBEDDING_URL", "")); url != "" {
+		return url
 	}
-	return url
+	if url := strings.TrimSpace(os.Getenv("RAG_EMBEDDING_URL")); url != "" {
+		return url
+	}
+	openRouterURL := strings.TrimSpace(db.GetProjectSettingString("OPENROUTER_URL", ""))
+	if openRouterURL == "" {
+		openRouterURL = strings.TrimSpace(os.Getenv("OPENROUTER_URL"))
+	}
+	if openRouterURL != "" {
+		if strings.Contains(openRouterURL, "/chat/completions") {
+			return strings.Replace(openRouterURL, "/chat/completions", "/embeddings", 1)
+		}
+		trimmed := strings.TrimRight(openRouterURL, "/")
+		if strings.HasSuffix(trimmed, "/api/v1") || strings.HasSuffix(trimmed, "/v1") {
+			return trimmed + "/embeddings"
+		}
+	}
+	return defaultRAGEmbeddingURL
 }
 
 func ragSliceProtectSignals() (string, string) {

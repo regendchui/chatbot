@@ -22,6 +22,7 @@ const (
 	projectSettingSingletonID         = 1
 	defaultAIMemoryMessageLimit       = 20
 	defaultOpenRouterModel            = "google/gemini-2.5-flash"
+	defaultOpenRouterURL              = "https://openrouter.ai/api/v1/chat/completions"
 	defaultAdminPanelUsername         = "admin"
 	defaultAdminPanelPassword         = "admin123"
 	defaultSendAIErrorFallback        = false
@@ -267,6 +268,7 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"AI_SYSTEM_PROMPT":                    strings.TrimSpace(os.Getenv("AI_SYSTEM_PROMPT")),
 		"AI_MEMORY_MESSAGE_LIMIT":             nonEmptyOrDefault(strings.TrimSpace(os.Getenv("AI_MEMORY_MESSAGE_LIMIT")), strconv.Itoa(defaultAIMemoryMessageLimit)),
 		"OPENROUTER_MODEL":                    nonEmptyOrDefault(strings.TrimSpace(os.Getenv("OPENROUTER_MODEL")), defaultOpenRouterModel),
+		"OPENROUTER_URL":                      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("OPENROUTER_URL")), defaultOpenRouterURL),
 		"ADMIN_PANEL_USERNAME":                nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_USERNAME")), defaultAdminPanelUsername),
 		"SEND_AI_ERROR_FALLBACK":              nonEmptyOrDefault(strings.TrimSpace(os.Getenv("SEND_AI_ERROR_FALLBACK")), boolString(defaultSendAIErrorFallback)),
 		"INBOUND_REPLAY_GRACE_WINDOW_SECONDS": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("INBOUND_REPLAY_GRACE_WINDOW_SECONDS")), strconv.Itoa(defaultInboundReplayWindowSecs)),
