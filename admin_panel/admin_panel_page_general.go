@@ -151,6 +151,7 @@ func adminNav(r *http.Request) string {
 		{Path: "/admin/verification", Label: "Verification"},
 		{Path: "/admin/table/auto-messages", Label: "Auto Messages"},
 		{Path: "/admin/rag", Label: "RAG"},
+		{Path: "/admin/intention-routing-rag", Label: "Intention Routing RAG"},
 		{Path: "/admin/table/embedding", Label: "Embedding Table"},
 		{Path: "/admin/table/db-tables", Label: "DB Tables"},
 		{Path: "/admin/table/project-setting", Label: "Project Setting (Raw)"},

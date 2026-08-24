@@ -10,6 +10,7 @@ OPENROUTER_MODEL=google/gemini-2.5-flash
 OPENROUTER_URL=https://openrouter.ai/api/v1/chat/completions
 
 RAG_ENABLED=false
+INTENTION_ROUTING_RAG_ENABLED=false
 RAG_CHUNK_SIZE=800
 RAG_CHUNK_OVERLAP=100
 RAG_TOP_K=3

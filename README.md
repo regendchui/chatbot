@@ -211,6 +211,8 @@ Set these in `.env` before the first `docker compose up`. Many are also editable
 | `ADMIN_PANEL_COOKIE_SECURE` | `true` when admin is served over HTTPS (see reverse proxy note) |
 | `ADMIN_PANEL_UTC_OFFSET_HOURS` | Display-only offset for admin timestamps and CSV exports |
 | `AI_SYSTEM_PROMPT`, `AI_MEMORY_MESSAGE_LIMIT` | AI behavior and memory window size |
+| `RAG_ENABLED` | Enables RAG retrieval for AI response generation |
+| `INTENTION_ROUTING_RAG_ENABLED` | Replaces standard all-document retrieval with the published workflow from **Admin → Intention Routing RAG** |
 | `REQUIRE_VERIFICATION` | Gate unverified participants (also see `verification_message` in survey JSON) |
 | `INBOUND_REPLAY_GRACE_WINDOW_SECONDS` | Limits replay of old inbound events on reconnect |
 | `CRON_SEND_MIN_DELAY_SECONDS`, `CRON_SEND_MAX_DELAY_SECONDS` | Random delay between cron outbound sends |

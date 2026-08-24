@@ -19,43 +19,44 @@ import (
 )
 
 const (
-	projectSettingSingletonID         = 1
-	defaultAIMemoryMessageLimit       = 20
-	defaultOpenRouterModel            = "google/gemini-2.5-flash"
-	defaultOpenRouterURL              = "https://openrouter.ai/api/v1/chat/completions"
-	defaultAdminPanelUsername         = "admin"
-	defaultAdminPanelPassword         = "admin123"
-	defaultSendAIErrorFallback        = false
-	defaultInboundReplayWindowSecs    = 10
-	defaultCronSendMinDelaySecs       = 30
-	defaultCronSendMaxDelaySecs       = 45
-	defaultInterventionEndMessageVal  = "As the service period is over, it is time to say goodbye. Thank you for using our service."
-	defaultRequireVerification        = false
-	defaultAdminPanelUTCOffsetHours   = 0
-	defaultSurveyPhoneDigits          = 0
-	defaultRAGEnabled                 = false
-	defaultRAGChunkSize               = 800
-	defaultRAGChunkOverlap            = 100
-	defaultRAGTopK                    = 3
-	defaultRAGMinSimilarity           = "0.2"
-	defaultRAGEmbeddingModel          = "openai/text-embedding-3-small"
-	defaultRAGEmbeddingURL            = "https://openrouter.ai/api/v1/embeddings"
-	defaultRAGMaxContextChars         = 2500
-	defaultRAGSliceProtectOpenSignal  = ""
-	defaultRAGSliceProtectCloseSignal = ""
-	defaultCollectiveResponse         = false
-	defaultCollectiveResponseDelaySec = 3
-	defaultMessageSliceEnabled        = false
-	defaultMessageSliceDelaySeconds   = 1
-	defaultIntervalOncePerOneWeek     = true
-	defaultIntervalTwicePerOneWeek    = true
-	defaultIntervalOncePerTwoWeek     = true
-	defaultVoiceMessageEnabled        = false
-	defaultVoiceMessageModel          = "openai/whisper-1"
-	defaultVoiceMessageTranscriptionURL   = "https://openrouter.ai/api/v1/audio/transcriptions"
+	projectSettingSingletonID              = 1
+	defaultAIMemoryMessageLimit            = 20
+	defaultOpenRouterModel                 = "google/gemini-2.5-flash"
+	defaultOpenRouterURL                   = "https://openrouter.ai/api/v1/chat/completions"
+	defaultAdminPanelUsername              = "admin"
+	defaultAdminPanelPassword              = "admin123"
+	defaultSendAIErrorFallback             = false
+	defaultInboundReplayWindowSecs         = 10
+	defaultCronSendMinDelaySecs            = 30
+	defaultCronSendMaxDelaySecs            = 45
+	defaultInterventionEndMessageVal       = "As the service period is over, it is time to say goodbye. Thank you for using our service."
+	defaultRequireVerification             = false
+	defaultAdminPanelUTCOffsetHours        = 0
+	defaultSurveyPhoneDigits               = 0
+	defaultRAGEnabled                      = false
+	defaultIntentionRoutingRAGEnabled      = false
+	defaultRAGChunkSize                    = 800
+	defaultRAGChunkOverlap                 = 100
+	defaultRAGTopK                         = 3
+	defaultRAGMinSimilarity                = "0.2"
+	defaultRAGEmbeddingModel               = "openai/text-embedding-3-small"
+	defaultRAGEmbeddingURL                 = "https://openrouter.ai/api/v1/embeddings"
+	defaultRAGMaxContextChars              = 2500
+	defaultRAGSliceProtectOpenSignal       = ""
+	defaultRAGSliceProtectCloseSignal      = ""
+	defaultCollectiveResponse              = false
+	defaultCollectiveResponseDelaySec      = 3
+	defaultMessageSliceEnabled             = false
+	defaultMessageSliceDelaySeconds        = 1
+	defaultIntervalOncePerOneWeek          = true
+	defaultIntervalTwicePerOneWeek         = true
+	defaultIntervalOncePerTwoWeek          = true
+	defaultVoiceMessageEnabled             = false
+	defaultVoiceMessageModel               = "openai/whisper-1"
+	defaultVoiceMessageTranscriptionURL    = "https://openrouter.ai/api/v1/audio/transcriptions"
 	defaultVoiceMessageUnintelligibleReply = "I couldn't hear anything in that voice note."
-	defaultRiskyPhrases                   = ""
-	defaultThankYouMessage                = "Thank you for your response"
+	defaultRiskyPhrases                    = ""
+	defaultThankYouMessage                 = "Thank you for your response"
 )
 
 type projectSettingRow struct {
@@ -279,6 +280,7 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"ADMIN_PANEL_UTC_OFFSET_HOURS":        nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_UTC_OFFSET_HOURS")), strconv.Itoa(defaultAdminPanelUTCOffsetHours)),
 		"SURVEY_PHONE_DIGITS":                 nonEmptyOrDefault(strings.TrimSpace(os.Getenv("SURVEY_PHONE_DIGITS")), strconv.Itoa(defaultSurveyPhoneDigits)),
 		"RAG_ENABLED":                         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RAG_ENABLED")), boolString(defaultRAGEnabled)),
+		"INTENTION_ROUTING_RAG_ENABLED":       nonEmptyOrDefault(strings.TrimSpace(os.Getenv("INTENTION_ROUTING_RAG_ENABLED")), boolString(defaultIntentionRoutingRAGEnabled)),
 		"RAG_CHUNK_SIZE":                      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RAG_CHUNK_SIZE")), strconv.Itoa(defaultRAGChunkSize)),
 		"RAG_CHUNK_OVERLAP":                   nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RAG_CHUNK_OVERLAP")), strconv.Itoa(defaultRAGChunkOverlap)),
 		"RAG_TOP_K":                           nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RAG_TOP_K")), strconv.Itoa(defaultRAGTopK)),
@@ -297,10 +299,10 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK":  nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_INTERVAL_ONCE_PER_TWO_WEEK")), boolString(defaultIntervalOncePerTwoWeek)),
 		"VOICE_MESSAGE_ENABLED":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_ENABLED")), boolString(defaultVoiceMessageEnabled)),
 		"VOICE_MESSAGE_MODEL":                 nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_MODEL")), defaultVoiceMessageModel),
-		"VOICE_MESSAGE_TRANSCRIPTION_URL":      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_TRANSCRIPTION_URL")), defaultVoiceMessageTranscriptionURL),
-		"VOICE_MESSAGE_UNINTELLIGIBLE_REPLY": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_UNINTELLIGIBLE_REPLY")), defaultVoiceMessageUnintelligibleReply),
-		"RISKY_PHRASES":                      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RISKY_PHRASES")), defaultRiskyPhrases),
-		"THANKYOU_MESSAGE":                   nonEmptyOrDefault(strings.TrimSpace(os.Getenv("THANKYOU_MESSAGE")), defaultThankYouMessage),
+		"VOICE_MESSAGE_TRANSCRIPTION_URL":     nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_TRANSCRIPTION_URL")), defaultVoiceMessageTranscriptionURL),
+		"VOICE_MESSAGE_UNINTELLIGIBLE_REPLY":  nonEmptyOrDefault(strings.TrimSpace(os.Getenv("VOICE_MESSAGE_UNINTELLIGIBLE_REPLY")), defaultVoiceMessageUnintelligibleReply),
+		"RISKY_PHRASES":                       nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RISKY_PHRASES")), defaultRiskyPhrases),
+		"THANKYOU_MESSAGE":                    nonEmptyOrDefault(strings.TrimSpace(os.Getenv("THANKYOU_MESSAGE")), defaultThankYouMessage),
 	}
 	defaultPassword := nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_PASSWORD")), defaultAdminPanelPassword)
 	encryptedPassword, err := encryptAdminPanelPassword(defaultPassword)

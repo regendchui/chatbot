@@ -3,6 +3,7 @@ package ai
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"encoding/xml"
@@ -183,7 +184,7 @@ func BuildRAGContext(query string) (string, error) {
 
 // BuildRAGContextWithDebug returns RAG context plus debug diagnostics for logging.
 func BuildRAGContextWithDebug(query string) (string, string, error) {
-	return buildRAGContextInternal(query)
+	return BuildConfiguredRAGContextWithDebug(context.Background(), query)
 }
 
 func buildRAGContextInternal(query string) (string, string, error) {
@@ -263,6 +264,10 @@ func buildRAGContextInternal(query string) (string, string, error) {
 }
 
 func embedTextForRAG(text string) ([]float64, error) {
+	return embedTextForRAGContext(context.Background(), text)
+}
+
+func embedTextForRAGContext(ctx context.Context, text string) ([]float64, error) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
 	if apiKey == "" {
 		return nil, fmt.Errorf("OPENROUTER_API_KEY is required for RAG embeddings")
@@ -275,7 +280,7 @@ func embedTextForRAG(text string) ([]float64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal RAG embedding request: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, ragEmbeddingURL(), bytes.NewReader(reqJSON))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ragEmbeddingURL(), bytes.NewReader(reqJSON))
 	if err != nil {
 		return nil, fmt.Errorf("create RAG embedding request: %w", err)
 	}

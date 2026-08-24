@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"whatsapp-bot/common"
 	"whatsapp-bot/db"
 	"whatsapp-bot/survey"
 )
@@ -98,6 +99,8 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<h3>RAG Settings</h3>`)
 	b.WriteString(`<form method="post" action="/admin/configuration/update/rag">`)
 	b.WriteString(`<p>RAG_ENABLED<br>` + adminBoolRadioGroup("RAG_ENABLED", envVars["RAG_ENABLED"]) + `</p>`)
+	b.WriteString(`<p>INTENTION_ROUTING_RAG_ENABLED<br>` + adminBoolRadioGroup("INTENTION_ROUTING_RAG_ENABLED", envVars["INTENTION_ROUTING_RAG_ENABLED"]) + `</p>`)
+	b.WriteString(`<p style="font-size:13px;color:#64748b;">When enabled, the published <a href="/admin/intention-routing-rag">Intention Routing RAG</a> workflow replaces the standard all-document search.</p>`)
 	b.WriteString(`<p><label>RAG_CHUNK_SIZE<br><input type="number" min="100" step="1" inputmode="numeric" name="RAG_CHUNK_SIZE" value="` + html.EscapeString(envVars["RAG_CHUNK_SIZE"]) + `" required></label></p>`)
 	b.WriteString(`<p><label>RAG_CHUNK_OVERLAP<br><input type="number" min="0" step="1" inputmode="numeric" name="RAG_CHUNK_OVERLAP" value="` + html.EscapeString(envVars["RAG_CHUNK_OVERLAP"]) + `" required></label></p>`)
 	b.WriteString(`<p><label>RAG_TOP_K<br><input type="number" min="1" step="1" inputmode="numeric" name="RAG_TOP_K" value="` + html.EscapeString(envVars["RAG_TOP_K"]) + `" required></label></p>`)
@@ -420,8 +423,39 @@ func adminConfigurationUpdateRAGHandler(w http.ResponseWriter, r *http.Request) 
 		adminConfigRedirect(w, r, "RAG open and close signals must be different.")
 		return
 	}
+	intentionRoutingEnabled := strings.EqualFold(strings.TrimSpace(r.FormValue("INTENTION_ROUTING_RAG_ENABLED")), "true")
+	if intentionRoutingEnabled {
+		published, loadErr := db.LoadPublishedIntentionRoutingRAGWorkflow(r.Context())
+		if loadErr != nil {
+			adminConfigRedirect(w, r, "Failed to verify the published Intention Routing RAG workflow.")
+			return
+		}
+		if published == nil {
+			adminConfigRedirect(w, r, "Publish a valid Intention Routing RAG workflow before enabling it.")
+			return
+		}
+		var graph common.IntentionRoutingRAGGraph
+		if err := json.Unmarshal(published.Graph, &graph); err != nil {
+			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is invalid.")
+			return
+		}
+		docs, docsErr := db.ListRAGDocuments()
+		if docsErr != nil {
+			adminConfigRedirect(w, r, "Failed to verify workflow RAG documents.")
+			return
+		}
+		docSet := make(map[string]struct{}, len(docs))
+		for name := range docs {
+			docSet[name] = struct{}{}
+		}
+		if issues := common.ValidateIntentionRoutingRAGGraph(graph, docSet); len(issues) > 0 {
+			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is no longer valid: "+issues[0].Message)
+			return
+		}
+	}
 	if err := db.UpdateProjectEnvVariables(map[string]string{
 		"RAG_ENABLED":                    strings.TrimSpace(r.FormValue("RAG_ENABLED")),
+		"INTENTION_ROUTING_RAG_ENABLED":  strings.TrimSpace(r.FormValue("INTENTION_ROUTING_RAG_ENABLED")),
 		"RAG_CHUNK_SIZE":                 chunkSize,
 		"RAG_CHUNK_OVERLAP":              chunkOverlap,
 		"RAG_TOP_K":                      topK,

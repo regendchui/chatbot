@@ -46,6 +46,9 @@ func InitDB() {
 	if err := EnsureRAGTableExists(); err != nil {
 		panic(fmt.Errorf("ensure RAG table: %w", err))
 	}
+	if err := EnsureIntentionRoutingRAGWorkflowTableExists(); err != nil {
+		panic(fmt.Errorf("ensure intention routing RAG workflow table: %w", err))
+	}
 	if err := EnsureLoginHistoryTableExists(); err != nil {
 		panic(fmt.Errorf("ensure login_history table: %w", err))
 	}

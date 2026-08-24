@@ -106,7 +106,41 @@ func ListRAGDocuments() (map[string]int64, error) {
 
 // LoadAllRAGEmbeddings returns all rows in the RAG table.
 func LoadAllRAGEmbeddings() ([]RAGEmbeddingRow, error) {
-	rows, err := DB.Query(context.Background(), `SELECT id, document_name, chunk_index, chunk_text, embedding::text, created_at FROM "RAG" ORDER BY id DESC`)
+	return loadRAGEmbeddings(context.Background(), nil)
+}
+
+// LoadRAGEmbeddingsByDocuments returns rows belonging only to the requested documents.
+func LoadRAGEmbeddingsByDocuments(ctx context.Context, documentNames []string) ([]RAGEmbeddingRow, error) {
+	names := make([]string, 0, len(documentNames))
+	seen := map[string]struct{}{}
+	for _, raw := range documentNames {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return []RAGEmbeddingRow{}, nil
+	}
+	return loadRAGEmbeddings(ctx, names)
+}
+
+func loadRAGEmbeddings(ctx context.Context, documentNames []string) ([]RAGEmbeddingRow, error) {
+	query := `SELECT id, document_name, chunk_index, chunk_text, embedding::text, created_at FROM "RAG"`
+	args := []any{}
+	if documentNames != nil {
+		query += ` WHERE document_name = ANY($1)`
+		args = append(args, documentNames)
+		query += ` ORDER BY document_name ASC, chunk_index ASC, id ASC`
+	} else {
+		query += ` ORDER BY id DESC`
+	}
+	rows, err := DB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query RAG rows: %w", err)
 	}

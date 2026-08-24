@@ -3,6 +3,7 @@ package admin_panel
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -23,6 +24,7 @@ type adminSession struct {
 	Username  string
 	ExpiresAt time.Time
 	IsRoot    bool
+	CSRFToken string
 }
 
 var adminSessions = struct {
@@ -148,15 +150,37 @@ func adminCreateSessionToken(username string, isRoot bool) (string, bool) {
 	if _, err := rand.Read(buf); err != nil {
 		return "", false
 	}
+	csrfBuf := make([]byte, 24)
+	if _, err := rand.Read(csrfBuf); err != nil {
+		return "", false
+	}
 	token := hex.EncodeToString(buf)
 	adminSessions.Lock()
 	adminSessions.byToken[token] = adminSession{
 		Username:  strings.TrimSpace(username),
 		ExpiresAt: adminSessionExpiryFromNow(time.Now()),
 		IsRoot:    isRoot,
+		CSRFToken: hex.EncodeToString(csrfBuf),
 	}
 	adminSessions.Unlock()
 	return token, true
+}
+
+func adminRequireCSRF(w http.ResponseWriter, r *http.Request) bool {
+	session, ok := adminSessionFromRequest(r)
+	if !ok || strings.TrimSpace(session.CSRFToken) == "" {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return false
+	}
+	provided := strings.TrimSpace(r.Header.Get("X-CSRF-Token"))
+	if provided == "" {
+		provided = strings.TrimSpace(r.FormValue("csrf_token"))
+	}
+	if subtle.ConstantTimeCompare([]byte(provided), []byte(session.CSRFToken)) != 1 {
+		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+		return false
+	}
+	return true
 }
 
 func adminCurrentSession(r *http.Request) (adminSession, bool) {
@@ -261,6 +285,8 @@ func adminPermissionBasePath(path string) string {
 		return "/admin/role"
 	case strings.HasPrefix(p, "/admin/rag"):
 		return "/admin/rag"
+	case strings.HasPrefix(p, "/admin/intention-routing-rag"):
+		return "/admin/intention-routing-rag"
 	case strings.HasPrefix(p, "/admin/table/embedding"):
 		return "/admin/table/embedding"
 	case strings.HasPrefix(p, "/admin/log"):

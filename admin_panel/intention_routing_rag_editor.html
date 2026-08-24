@@ -1,0 +1,174 @@
+<style>
+.irr-shell{border:1px solid #dbe3ee;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,.08)}
+.irr-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;border-bottom:1px solid #e2e8f0;background:#fff}
+.irr-toolbar .spacer{flex:1}.irr-toolbar button.secondary{background:#fff;color:#334155;border-color:#cbd5e1}.irr-toolbar button.danger{background:#fff;color:#b91c1c;border-color:#fecaca}
+.irr-badge{font-size:12px;font-weight:700;padding:4px 8px;border-radius:999px;background:#e2e8f0;color:#334155}.irr-badge.live{background:#dcfce7;color:#166534}.irr-badge.draft{background:#fef3c7;color:#92400e}
+.irr-workspace{display:grid;grid-template-columns:190px minmax(480px,1fr) 330px;height:690px;min-height:560px}
+.irr-palette,.irr-inspector{padding:14px;background:#f8fafc;overflow:auto}.irr-palette{border-right:1px solid #e2e8f0}.irr-inspector{border-left:1px solid #e2e8f0}
+.irr-palette button{display:block;width:100%;margin:0 0 9px;text-align:left;padding:10px}.irr-help{font-size:12px;color:#64748b;line-height:1.45}
+.irr-canvas-wrap{position:relative;overflow:auto;background-color:#f8fafc;background-image:radial-gradient(#cbd5e1 1px,transparent 1px);background-size:20px 20px}
+.irr-canvas-controls{position:sticky;z-index:20;top:10px;left:10px;display:flex;width:max-content;gap:5px;padding:5px;background:rgba(255,255,255,.94);border:1px solid #dbe3ee;border-radius:9px;box-shadow:0 2px 8px rgba(15,23,42,.08)}
+.irr-canvas-controls button{padding:4px 8px;background:#fff;color:#334155;border-color:#cbd5e1}.irr-stage{position:relative}.irr-world{position:absolute;left:0;top:0;width:2400px;height:1400px;transform-origin:0 0}
+#irr-edges{position:absolute;inset:0;overflow:visible;pointer-events:none}#irr-edges path{pointer-events:stroke;cursor:pointer}
+.irr-node{position:absolute;width:230px;background:#fff;border:2px solid #cbd5e1;border-radius:11px;box-shadow:0 5px 18px rgba(15,23,42,.12);user-select:none}.irr-node.selected{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15),0 8px 22px rgba(15,23,42,.14)}
+.irr-node.input{border-color:#64748b}.irr-node.routing{border-color:#7c3aed}.irr-node.rag{border-color:#059669}.irr-node-title{padding:10px 12px;font-weight:800;border-bottom:1px solid #e2e8f0;cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.irr-node-type{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#64748b;display:block}.irr-node-body{padding:8px 12px;font-size:12px;color:#475569}.irr-option-row{height:26px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #f1f5f9;position:relative;padding:0 12px;font-size:11px}.irr-option-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.irr-handle{position:absolute;width:13px;height:13px;border:2px solid #fff;border-radius:50%;background:#64748b;box-shadow:0 0 0 1px #94a3b8;cursor:crosshair;z-index:5}.irr-handle.input-handle{left:-8px;top:43px;background:#2563eb}.irr-handle.output-handle{right:-8px;top:50%;transform:translateY(-50%);background:#7c3aed}.irr-node.input>.output-handle{right:-8px;top:43px;transform:none}.irr-handle.connecting{box-shadow:0 0 0 5px rgba(124,58,237,.22)}
+.irr-inspector h3,.irr-palette h3{font-size:15px;margin-bottom:10px}.irr-field{display:block;margin:0 0 11px;font-size:12px;font-weight:700;color:#334155}.irr-field input,.irr-field select,.irr-field textarea{display:block;width:100%;margin-top:4px;font-weight:400}.irr-option-card,.irr-doc-card{background:#fff;border:1px solid #dbe3ee;border-radius:9px;padding:9px;margin-bottom:9px}.irr-option-card .remove{float:right;background:#fff;color:#b91c1c;border-color:#fecaca;padding:3px 7px}.irr-inline{display:grid;grid-template-columns:1fr 1fr;gap:7px}.irr-inspector-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.irr-inspector-actions button.secondary{background:#fff;color:#334155;border-color:#cbd5e1}.irr-inspector-actions button.danger{background:#b91c1c;border-color:#991b1b}
+.irr-status{display:none;margin:10px 0;padding:9px 11px;border-radius:9px;font-size:13px;white-space:pre-wrap}.irr-status.show{display:block}.irr-status.success{background:#ecfdf3;color:#166534;border:1px solid #bbf7d0}.irr-status.error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}.irr-status.info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+.irr-test-panel{padding:12px;border-top:1px solid #e2e8f0;background:#fff}.irr-test-row{display:flex;gap:8px}.irr-test-row textarea{min-height:64px}.irr-test-result{max-height:360px;overflow:auto;background:#0f172a;color:#dbeafe;border-radius:9px;padding:12px;white-space:pre-wrap;display:none}.irr-test-result.show{display:block}
+@media(max-width:1050px){.irr-workspace{grid-template-columns:150px minmax(400px,1fr) 290px}}@media(max-width:800px){.irr-workspace{display:flex;flex-direction:column;height:auto}.irr-palette,.irr-inspector{border:0}.irr-canvas-wrap{height:520px}.irr-palette button{display:inline-block;width:auto;margin-right:6px}}
+</style>
+
+<div id="irr-app" class="irr-shell" data-csrf="__CSRF_TOKEN__">
+  <div class="irr-toolbar">
+    <span id="irr-status-badge" class="irr-badge">New</span>
+    <span id="irr-revision-label" class="irr-help"></span>
+    <span id="irr-enabled-badge" class="irr-badge"></span>
+    <span class="spacer"></span>
+    <button id="irr-save" type="button">Save draft</button>
+    <button id="irr-validate" class="secondary" type="button">Validate</button>
+    <button id="irr-publish" type="button">Publish</button>
+    <button id="irr-discard" class="danger" type="button">Discard draft</button>
+  </div>
+  <div id="irr-message" class="irr-status" role="status" aria-live="polite"></div>
+  <div class="irr-workspace">
+    <aside class="irr-palette">
+      <h3>Add block</h3>
+      <button id="irr-add-routing" type="button">◆ Routing block</button>
+      <button id="irr-add-rag" type="button" style="background:#059669;border-color:#047857">▤ RAG block</button>
+      <p class="irr-help">Click an output dot, then a downstream block's blue input dot to connect them. Click a connection line to remove it.</p>
+      <p class="irr-help">The Input block is permanent. RAG blocks are terminal.</p>
+    </aside>
+    <section id="irr-canvas" class="irr-canvas-wrap" aria-label="Intention Routing RAG workflow canvas">
+      <div class="irr-canvas-controls">
+        <button id="irr-zoom-out" type="button" aria-label="Zoom out">−</button>
+        <button id="irr-zoom-reset" type="button">100%</button>
+        <button id="irr-zoom-in" type="button" aria-label="Zoom in">+</button>
+        <button id="irr-fit" type="button">Fit</button>
+      </div>
+      <div id="irr-stage" class="irr-stage"><div id="irr-world" class="irr-world">
+        <svg id="irr-edges" width="2400" height="1400" aria-label="Workflow connections"></svg>
+        <div id="irr-nodes"></div>
+      </div></div>
+    </section>
+    <aside id="irr-inspector" class="irr-inspector"><h3>Block settings</h3><p class="irr-help">Select a block to configure it.</p></aside>
+  </div>
+  <div class="irr-test-panel">
+    <h3>Test draft workflow</h3>
+    <p class="irr-help">Runs routing and retrieval against the current canvas without publishing it or calling final response generation.</p>
+    <div class="irr-test-row"><textarea id="irr-test-enquiry" placeholder="Enter a user enquiry to inspect probabilities, selected routes, and RAG chunks."></textarea><button id="irr-test" type="button">Run test</button></div>
+    <pre id="irr-test-result" class="irr-test-result"></pre>
+  </div>
+</div>
+<script id="irr-bootstrap" type="application/json">__BOOTSTRAP_JSON__</script>
+<script>
+(function(){
+  "use strict";
+  const boot=JSON.parse(document.getElementById("irr-bootstrap").textContent);
+  const app=document.getElementById("irr-app"),csrf=app.dataset.csrf;
+  let graph=boot.graph,selectedID=graph.input_node_id||"input",connectSource=null,dirty=false,zoom=(graph.viewport&&graph.viewport.zoom)||1;
+  graph.nodes=graph.nodes||[];graph.edges=graph.edges||[];graph.viewport=graph.viewport||{x:0,y:0,zoom:1};
+  const canvas=document.getElementById("irr-canvas"),stage=document.getElementById("irr-stage"),world=document.getElementById("irr-world"),nodesLayer=document.getElementById("irr-nodes"),edgesSVG=document.getElementById("irr-edges"),inspector=document.getElementById("irr-inspector");
+  const documents=boot.documents||[];
+  const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  const uid=p=>p+"_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+  const nodeByID=id=>graph.nodes.find(n=>n.id===id);
+  const outgoing=(nodeID,optionID="")=>graph.edges.find(e=>e.source_node_id===nodeID&&(e.source_option_id||"")===optionID);
+  const markDirty=()=>{dirty=true;renderMeta();};
+  function showMessage(text,type="info"){const el=document.getElementById("irr-message");el.textContent=text;el.className="irr-status show "+type;}
+  function clearMessage(){document.getElementById("irr-message").className="irr-status";}
+  function renderMeta(){
+    const badge=document.getElementById("irr-status-badge");badge.textContent=dirty?"Unsaved":(boot.status==="draft"?"Draft":boot.status==="published"?"Published":"New");badge.className="irr-badge "+(dirty||boot.status==="draft"?"draft":boot.status==="published"?"live":"");
+    document.getElementById("irr-revision-label").textContent=boot.revision?"Revision "+boot.revision+(boot.published_revision?" · live "+boot.published_revision:""):"Not saved";
+    const enabled=document.getElementById("irr-enabled-badge");enabled.textContent=boot.feature_enabled?"Routing enabled":"Routing disabled";enabled.className="irr-badge "+(boot.feature_enabled?"live":"");
+  }
+  function nodeHeight(node){const el=nodesLayer.querySelector('[data-id="'+CSS.escape(node.id)+'"]');if(el)return el.offsetHeight;if(node.type==="routing")return 90+Math.max(1,(node.routing.options||[]).length)*27;return 105;}
+  function renderViewport(){zoom=Math.max(.35,Math.min(1.8,zoom));world.style.transform="scale("+zoom+")";stage.style.width=(2400*zoom)+"px";stage.style.height=(1400*zoom)+"px";document.getElementById("irr-zoom-reset").textContent=Math.round(zoom*100)+"%";}
+  function handlePoint(nodeID,selector){const nodeEl=nodesLayer.querySelector('[data-id="'+CSS.escape(nodeID)+'"]');const handle=nodeEl&&nodeEl.querySelector(selector);if(!handle)return null;const handleRect=handle.getBoundingClientRect(),worldRect=world.getBoundingClientRect();return{x:(handleRect.left+handleRect.width/2-worldRect.left)/zoom,y:(handleRect.top+handleRect.height/2-worldRect.top)/zoom};}
+  function sourcePoint(edge){const n=nodeByID(edge.source_node_id);if(!n)return null;const selector=n.type==="routing"?'.output-handle[data-option="'+CSS.escape(edge.source_option_id)+'"]':".output-handle";return handlePoint(n.id,selector);}
+  function targetPoint(edge){return nodeByID(edge.target_node_id)?handlePoint(edge.target_node_id,".input-handle"):null;}
+  function renderEdges(){
+    edgesSVG.innerHTML='<defs><marker id="irr-arrow" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path></marker></defs>';
+    graph.edges.forEach(edge=>{const a=sourcePoint(edge),b=targetPoint(edge);if(!a||!b)return;const bend=Math.max(60,Math.abs(b.x-a.x)*.45);const path=document.createElementNS("http://www.w3.org/2000/svg","path");path.setAttribute("d",`M ${a.x} ${a.y} C ${a.x+bend} ${a.y}, ${b.x-bend} ${b.y}, ${b.x} ${b.y}`);path.setAttribute("fill","none");path.setAttribute("stroke","#64748b");path.setAttribute("stroke-width","2.5");path.setAttribute("marker-end","url(#irr-arrow)");path.addEventListener("click",ev=>{ev.stopPropagation();if(confirm("Remove this connection?")){graph.edges=graph.edges.filter(e=>e.id!==edge.id);markDirty();renderAll();}});edgesSVG.appendChild(path);});
+  }
+  function renderNodes(){
+    nodesLayer.innerHTML="";
+    graph.nodes.forEach(node=>{
+      const el=document.createElement("div");el.className="irr-node "+node.type+(node.id===selectedID?" selected":"");el.style.left=node.position.x+"px";el.style.top=node.position.y+"px";el.dataset.id=node.id;
+      let body='<div class="irr-node-title"><span class="irr-node-type">'+esc(node.type)+" block</span>"+esc(node.name||"Untitled")+"</div>";
+      if(node.type!=="input")body+='<span class="irr-handle input-handle" title="Connect into this block" tabindex="0"></span>';
+      if(node.type==="input"){body+='<span class="irr-handle output-handle" title="Connect Input" tabindex="0"></span><div class="irr-node-body">Original user enquiry</div>';}
+      if(node.type==="routing"){
+        body+='<div class="irr-node-body">'+esc(node.routing.mode)+" · threshold &gt; "+esc(node.routing.threshold)+"</div>";
+        (node.routing.options||[]).forEach(o=>{body+='<div class="irr-option-row"><span class="irr-option-label">'+esc(o.name||"Unnamed option")+'</span><span class="irr-handle output-handle" data-option="'+esc(o.id)+'" title="Connect this intention" tabindex="0"></span></div>';});
+      }
+      if(node.type==="rag")body+='<div class="irr-node-body">'+(node.rag.documents||[]).length+" document(s)<br>Terminal retrieval block</div>";
+      el.innerHTML=body;
+      el.addEventListener("click",()=>{selectedID=node.id;renderAll();});
+      const title=el.querySelector(".irr-node-title");title.addEventListener("mousedown",ev=>startDrag(ev,node));
+      const input=el.querySelector(".input-handle");if(input){const connect=ev=>{ev.stopPropagation();if(connectSource)setConnection(connectSource.nodeID,connectSource.optionID,node.id);};input.addEventListener("click",connect);input.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" ")connect(ev);});}
+      el.querySelectorAll(".output-handle").forEach(handle=>{const begin=ev=>{ev.stopPropagation();connectSource={nodeID:node.id,optionID:handle.dataset.option||""};showMessage("Connection started. Click a blue input dot on a downstream block.","info");renderNodes();};handle.addEventListener("click",begin);handle.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" ")begin(ev);});if(connectSource&&connectSource.nodeID===node.id&&connectSource.optionID===(handle.dataset.option||""))handle.classList.add("connecting");});
+      nodesLayer.appendChild(el);
+    });
+  }
+  function startDrag(ev,node){if(ev.button!==0)return;ev.preventDefault();selectedID=node.id;const startX=ev.clientX,startY=ev.clientY,originX=node.position.x,originY=node.position.y;const move=e=>{node.position.x=Math.max(0,originX+(e.clientX-startX)/zoom);node.position.y=Math.max(0,originY+(e.clientY-startY)/zoom);const el=nodesLayer.querySelector('[data-id="'+CSS.escape(node.id)+'"]');if(el){el.style.left=node.position.x+"px";el.style.top=node.position.y+"px";}renderEdges();dirty=true;};const up=()=>{document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",up);markDirty();renderAll();};document.addEventListener("mousemove",move);document.addEventListener("mouseup",up);}
+  function setConnection(sourceNodeID,sourceOptionID,targetNodeID){
+    if(sourceNodeID===targetNodeID){showMessage("A block cannot connect to itself.","error");return;}
+    const target=nodeByID(targetNodeID);if(!target||target.type==="input"){showMessage("Connections must target a Routing or RAG block.","error");return;}
+    graph.edges=graph.edges.filter(e=>!(e.source_node_id===sourceNodeID&&(e.source_option_id||"")===sourceOptionID));
+    graph.edges.push({id:uid("edge"),source_node_id:sourceNodeID,source_option_id:sourceOptionID,target_node_id:targetNodeID});connectSource=null;clearMessage();markDirty();renderAll();
+  }
+  function targetSelect(sourceNodeID,optionID){const current=outgoing(sourceNodeID,optionID);let html='<option value="">Not connected</option>';graph.nodes.filter(n=>n.id!==sourceNodeID&&n.type!=="input").forEach(n=>{html+='<option value="'+esc(n.id)+'" '+(current&&current.target_node_id===n.id?"selected":"")+'>'+esc(n.name)+" ("+esc(n.type)+")</option>";});return html;}
+  function documentCheckboxes(selected){if(!documents.length)return '<p class="irr-help">No indexed RAG documents. Add documents on the RAG page first.</p>';return documents.map(name=>'<label style="display:block;margin:5px 0"><input type="checkbox" data-doc="'+esc(name)+'" '+(selected.includes(name)?"checked":"")+'> '+esc(name)+"</label>").join("");}
+  function renderInspector(){
+    const node=nodeByID(selectedID);if(!node){inspector.innerHTML='<h3>Block settings</h3><p class="irr-help">Select a block.</p>';return;}
+    if(node.type==="input"){
+      inspector.innerHTML='<h3>Input</h3><p class="irr-help">The original user enquiry enters here. This block cannot be deleted.</p><label class="irr-field">Downstream block<select id="irr-input-target">'+targetSelect(node.id,"")+'</select></label>';
+      inspector.querySelector("#irr-input-target").addEventListener("change",e=>{if(e.target.value)setConnection(node.id,"",e.target.value);else{graph.edges=graph.edges.filter(x=>x.source_node_id!==node.id);markDirty();renderAll();}});return;
+    }
+    if(node.type==="routing")renderRoutingInspector(node);else renderRAGInspector(node);
+  }
+  function renderRoutingInspector(node){
+    const r=node.routing;let html='<h3>Routing block</h3><label class="irr-field">Block name<input id="irr-name" value="'+esc(node.name)+'"></label><label class="irr-field">Routing mode<select id="irr-mode"><option value="single" '+(r.mode==="single"?"selected":"")+'>Single routing</option><option value="multiple" '+(r.mode==="multiple"?"selected":"")+'>Multiple routing</option></select></label><label class="irr-field">Model<input id="irr-model" list="irr-models" value="'+esc(r.model||boot.default_model)+'"><datalist id="irr-models"><option value="'+esc(boot.default_model)+'"></datalist></label><label class="irr-field">Probability threshold (strictly greater than)<input id="irr-threshold" type="number" min="0" max="1" step="0.01" value="'+esc(r.threshold)+'"></label><h3>Routing documents</h3><div id="irr-routing-docs">'+documentCheckboxes(r.documents||[])+"</div><h3>Intention options</h3>";
+    (r.options||[]).forEach((o,index)=>{html+='<div class="irr-option-card" data-option-index="'+index+'"><button class="remove" data-remove-option="'+index+'" type="button">×</button><label class="irr-field">Name<input data-option-name="'+index+'" value="'+esc(o.name)+'"></label><label class="irr-field">Description<textarea rows="3" data-option-description="'+index+'">'+esc(o.description)+'</textarea></label><label class="irr-field">Downstream block<select data-option-target="'+index+'">'+targetSelect(node.id,o.id)+'</select></label><label class="irr-help"><input type="checkbox" data-option-terminal="'+index+'" '+(o.terminal_no_rag?"checked":"")+'> Terminal no-RAG option</label></div>';});
+    html+='<button id="irr-add-option" type="button">Add intention option</button><div class="irr-inspector-actions"><button id="irr-duplicate" class="secondary" type="button">Duplicate block</button><button id="irr-delete" class="danger" type="button">Delete block</button></div>';inspector.innerHTML=html;
+    bindValue("#irr-name","input",v=>node.name=v);bindValue("#irr-mode","change",v=>r.mode=v);bindValue("#irr-model","input",v=>r.model=v);bindValue("#irr-threshold","input",v=>r.threshold=Number(v));
+    inspector.querySelectorAll("[data-doc]").forEach(input=>input.addEventListener("change",()=>{r.documents=Array.from(inspector.querySelectorAll("[data-doc]:checked")).map(x=>x.dataset.doc);markDirty();renderNodes();}));
+    inspector.querySelectorAll("[data-option-name]").forEach(input=>input.addEventListener("input",()=>{r.options[Number(input.dataset.optionName)].name=input.value;markDirty();renderNodes();}));
+    inspector.querySelectorAll("[data-option-description]").forEach(input=>input.addEventListener("input",()=>{r.options[Number(input.dataset.optionDescription)].description=input.value;markDirty();}));
+    inspector.querySelectorAll("[data-option-target]").forEach(select=>select.addEventListener("change",()=>{const o=r.options[Number(select.dataset.optionTarget)];if(select.value){o.terminal_no_rag=false;setConnection(node.id,o.id,select.value);}else{graph.edges=graph.edges.filter(e=>!(e.source_node_id===node.id&&e.source_option_id===o.id));markDirty();renderAll();}}));
+    inspector.querySelectorAll("[data-option-terminal]").forEach(input=>input.addEventListener("change",()=>{const o=r.options[Number(input.dataset.optionTerminal)];o.terminal_no_rag=input.checked;if(input.checked)graph.edges=graph.edges.filter(e=>!(e.source_node_id===node.id&&e.source_option_id===o.id));markDirty();renderAll();}));
+    inspector.querySelectorAll("[data-remove-option]").forEach(btn=>btn.addEventListener("click",()=>{const index=Number(btn.dataset.removeOption),id=r.options[index].id;r.options.splice(index,1);graph.edges=graph.edges.filter(e=>!(e.source_node_id===node.id&&e.source_option_id===id));markDirty();renderAll();}));
+    inspector.querySelector("#irr-add-option").addEventListener("click",()=>{if(r.options.length>=20){showMessage("A Routing block supports at most 20 options.","error");return;}r.options.push({id:uid("option"),name:"New intention",description:"",terminal_no_rag:false});markDirty();renderAll();});bindBlockActions(node);
+  }
+  function renderRAGInspector(node){
+    const selected=(node.rag.documents||[]).map(d=>d.document_name);let html='<h3>RAG block</h3><label class="irr-field">Block name<input id="irr-name" value="'+esc(node.name)+'"></label><p class="irr-help">Each selected document has independent retrieval settings.</p>';
+    if(!documents.length)html+='<p class="irr-help">No indexed RAG documents. Add documents on the RAG page first.</p>';
+    documents.forEach(name=>{const d=(node.rag.documents||[]).find(x=>x.document_name===name);html+='<div class="irr-doc-card"><label><input type="checkbox" data-rag-doc="'+esc(name)+'" '+(d?"checked":"")+'> <strong>'+esc(name)+'</strong></label>'+(d?'<div class="irr-inline"><label class="irr-field">Top K<input type="number" min="1" max="100" data-rag-top="'+esc(name)+'" value="'+esc(d.top_k)+'"></label><label class="irr-field">Min similarity<input type="number" min="-1" max="1" step="0.01" data-rag-min="'+esc(name)+'" value="'+esc(d.min_similarity)+'"></label></div>':"")+"</div>";});
+    html+='<div class="irr-inspector-actions"><button id="irr-duplicate" class="secondary" type="button">Duplicate block</button><button id="irr-delete" class="danger" type="button">Delete block</button></div>';inspector.innerHTML=html;bindValue("#irr-name","input",v=>node.name=v);
+    inspector.querySelectorAll("[data-rag-doc]").forEach(input=>input.addEventListener("change",()=>{const name=input.dataset.ragDoc;if(input.checked&&!selected.includes(name))node.rag.documents.push({document_name:name,top_k:3,min_similarity:.2});if(!input.checked)node.rag.documents=node.rag.documents.filter(d=>d.document_name!==name);markDirty();renderAll();}));
+    inspector.querySelectorAll("[data-rag-top]").forEach(input=>input.addEventListener("input",()=>{node.rag.documents.find(d=>d.document_name===input.dataset.ragTop).top_k=Number(input.value);markDirty();}));
+    inspector.querySelectorAll("[data-rag-min]").forEach(input=>input.addEventListener("input",()=>{node.rag.documents.find(d=>d.document_name===input.dataset.ragMin).min_similarity=Number(input.value);markDirty();}));bindBlockActions(node);
+  }
+  function bindValue(selector,event,assign){const el=inspector.querySelector(selector);el.addEventListener(event,()=>{assign(el.value);markDirty();renderNodes();renderEdges();});}
+  function bindBlockActions(node){inspector.querySelector("#irr-delete").addEventListener("click",()=>{if(!confirm("Delete this block and its connections?"))return;graph.nodes=graph.nodes.filter(n=>n.id!==node.id);graph.edges=graph.edges.filter(e=>e.source_node_id!==node.id&&e.target_node_id!==node.id);selectedID=graph.input_node_id;markDirty();renderAll();});inspector.querySelector("#irr-duplicate").addEventListener("click",()=>{const copy=JSON.parse(JSON.stringify(node));copy.id=uid(node.type);copy.name=node.name+" copy";copy.position={x:node.position.x+50,y:node.position.y+50};if(copy.routing)copy.routing.options.forEach(o=>o.id=uid("option"));graph.nodes.push(copy);selectedID=copy.id;markDirty();renderAll();});}
+  function renderAll(){renderMeta();renderViewport();renderNodes();renderEdges();renderInspector();}
+  function addRouting(){if(graph.nodes.length>=100)return showMessage("Workflow supports at most 100 blocks.","error");const id=uid("routing");graph.nodes.push({id,type:"routing",name:"Routing "+graph.nodes.filter(n=>n.type==="routing").length,position:newNodePosition(),routing:{mode:"single",model:boot.default_model,threshold:.7,options:[{id:uid("option"),name:"Intention 1",description:"",terminal_no_rag:false}],documents:[]}});selectedID=id;markDirty();renderAll();}
+  function addRAG(){if(graph.nodes.length>=100)return showMessage("Workflow supports at most 100 blocks.","error");const id=uid("rag");graph.nodes.push({id,type:"rag",name:"RAG "+graph.nodes.filter(n=>n.type==="rag").length,position:newNodePosition(),rag:{documents:[]}});selectedID=id;markDirty();renderAll();}
+  function newNodePosition(){return{x:Math.max(20,(canvas.scrollLeft+canvas.clientWidth*.35)/zoom),y:Math.max(20,(canvas.scrollTop+canvas.clientHeight*.35)/zoom)};}
+  function captureViewport(){graph.viewport={x:canvas.scrollLeft,y:canvas.scrollTop,zoom};}
+  async function api(path,payload){const response=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify(payload)});let data={};try{data=await response.json();}catch(_){data={error:"Unexpected server response."};}if(!response.ok)throw Object.assign(new Error(data.error||"Request failed."),{data,status:response.status});return data;}
+  function issueText(data){return(data.issues||[]).map(i=>i.path+": "+i.message).join("\n");}
+  async function saveDraft(notify=true){captureViewport();const data=await api("/admin/intention-routing-rag/draft",{graph,lock_version:boot.lock_version||0});boot.status="draft";boot.revision=data.revision;boot.lock_version=data.lock_version;dirty=false;renderMeta();if(notify)showMessage(data.message,"success");return data;}
+  async function guarded(action){clearMessage();try{await action();}catch(err){showMessage((err.message||"Request failed")+(issueText(err.data)?"\n"+issueText(err.data):""),"error");}}
+  document.getElementById("irr-add-routing").addEventListener("click",addRouting);document.getElementById("irr-add-rag").addEventListener("click",addRAG);
+  document.getElementById("irr-save").addEventListener("click",()=>guarded(()=>saveDraft(true)));
+  document.getElementById("irr-validate").addEventListener("click",()=>guarded(async()=>{captureViewport();const data=await api("/admin/intention-routing-rag/validate",{graph,lock_version:boot.lock_version||0});if(!data.valid)throw Object.assign(new Error("Workflow validation failed."),{data});showMessage("Workflow is valid and ready to publish.","success");}));
+  document.getElementById("irr-publish").addEventListener("click",()=>guarded(async()=>{await saveDraft(false);const data=await api("/admin/intention-routing-rag/publish",{lock_version:boot.lock_version});boot.status="published";boot.revision=data.revision;boot.published_revision=data.revision;boot.lock_version=0;dirty=false;renderMeta();showMessage(data.message,"success");}));
+  document.getElementById("irr-discard").addEventListener("click",()=>{if(!confirm("Discard current draft changes and restore the published workflow?"))return;guarded(async()=>{const data=await api("/admin/intention-routing-rag/discard-draft",{lock_version:boot.lock_version||0});Object.assign(boot,data.state);graph=boot.graph;selectedID=graph.input_node_id;zoom=(graph.viewport&&graph.viewport.zoom)||1;dirty=false;renderAll();showMessage(data.message,"success");});});
+  document.getElementById("irr-test").addEventListener("click",()=>guarded(async()=>{const enquiry=document.getElementById("irr-test-enquiry").value.trim();showMessage("Running draft workflow…","info");const data=await api("/admin/intention-routing-rag/test",{graph,lock_version:boot.lock_version||0,enquiry});const output=document.getElementById("irr-test-result");output.textContent=JSON.stringify(data.result,null,2);output.classList.add("show");showMessage("Test completed. The published workflow was not changed.","success");}));
+  document.getElementById("irr-zoom-in").addEventListener("click",()=>{zoom+=.1;renderViewport();});document.getElementById("irr-zoom-out").addEventListener("click",()=>{zoom-=.1;renderViewport();});document.getElementById("irr-zoom-reset").addEventListener("click",()=>{zoom=1;renderViewport();});document.getElementById("irr-fit").addEventListener("click",()=>{const nonempty=graph.nodes;if(!nonempty.length)return;const minX=Math.min(...nonempty.map(n=>n.position.x)),minY=Math.min(...nonempty.map(n=>n.position.y)),maxX=Math.max(...nonempty.map(n=>n.position.x+230)),maxY=Math.max(...nonempty.map(n=>n.position.y+nodeHeight(n)));zoom=Math.max(.35,Math.min(1.2,Math.min((canvas.clientWidth-80)/(maxX-minX+1),(canvas.clientHeight-80)/(maxY-minY+1))));renderViewport();canvas.scrollLeft=Math.max(0,minX*zoom-30);canvas.scrollTop=Math.max(0,minY*zoom-30);});
+  canvas.addEventListener("click",()=>{if(connectSource){connectSource=null;clearMessage();renderNodes();}});window.addEventListener("beforeunload",ev=>{if(dirty){ev.preventDefault();ev.returnValue="";}});
+  renderAll();requestAnimationFrame(()=>{canvas.scrollLeft=graph.viewport.x||0;canvas.scrollTop=graph.viewport.y||0;});
+})();
+</script>
