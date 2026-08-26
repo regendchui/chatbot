@@ -116,3 +116,17 @@ func TestBuildIntentionRoutingRAGEnquiryIncludesUnpersistedCurrentMessage(t *tes
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
+
+func TestNormalizeRAGExecutionMode(t *testing.T) {
+	tests := map[string]RAGExecutionMode{
+		"disabled":   RAGExecutionModeDisabled,
+		" STANDARD ": RAGExecutionModeStandard,
+		"Intention":  RAGExecutionModeIntention,
+		"unknown":    RAGExecutionModeConfigured,
+	}
+	for input, want := range tests {
+		if got := NormalizeRAGExecutionMode(input); got != want {
+			t.Fatalf("NormalizeRAGExecutionMode(%q)=%q want %q", input, got, want)
+		}
+	}
+}

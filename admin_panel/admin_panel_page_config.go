@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"whatsapp-bot/AI"
 	"whatsapp-bot/common"
 	"whatsapp-bot/db"
 	"whatsapp-bot/survey"
@@ -119,8 +120,10 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<p><button type="submit">Save verification message</button></p>`)
 	b.WriteString(`</form>`)
 
-	b.WriteString(`<h3>Cron Throttle Window</h3>`)
+	b.WriteString(`<h3>Auto Cron AI Retrieval and Throttle</h3>`)
 	b.WriteString(`<form method="post" action="/admin/configuration/update/cron-delay">`)
+	b.WriteString(`<p><label>RAG mode for auto cron AI messages<br><select name="AUTO_AI_RAG_MODE">` + adminAutoAIRAGModeOptions(envVars["AUTO_AI_RAG_MODE"]) + `</select></label></p>`)
+	b.WriteString(`<p style="font-size:13px;color:#64748b;">This setting applies only to scheduled auto AI messages. Standard RAG searches all indexed documents; Intention Routing RAG uses the published workflow; Disabled adds no document context.</p>`)
 	b.WriteString(`<p><label>CRON_SEND_MIN_DELAY_SECONDS<br><input type="number" min="0" step="1" inputmode="numeric" name="CRON_SEND_MIN_DELAY_SECONDS" value="` + html.EscapeString(envVars["CRON_SEND_MIN_DELAY_SECONDS"]) + `" required></label></p>`)
 	b.WriteString(`<p><label>CRON_SEND_MAX_DELAY_SECONDS<br><input type="number" min="0" step="1" inputmode="numeric" name="CRON_SEND_MAX_DELAY_SECONDS" value="` + html.EscapeString(envVars["CRON_SEND_MAX_DELAY_SECONDS"]) + `" required></label></p>`)
 	b.WriteString(`<p><button type="submit">Save cron delay settings</button></p>`)
@@ -541,15 +544,70 @@ func adminConfigurationUpdateCronDelayHandler(w http.ResponseWriter, r *http.Req
 		adminConfigRedirect(w, r, "CRON_SEND_MAX_DELAY_SECONDS must be >= CRON_SEND_MIN_DELAY_SECONDS.")
 		return
 	}
+	ragMode := ai.NormalizeRAGExecutionMode(r.FormValue("AUTO_AI_RAG_MODE"))
+	if ragMode == ai.RAGExecutionModeConfigured {
+		adminConfigRedirect(w, r, "AUTO_AI_RAG_MODE must be disabled, standard, or intention.")
+		return
+	}
+	if ragMode == ai.RAGExecutionModeIntention {
+		published, loadErr := db.LoadPublishedIntentionRoutingRAGWorkflow(r.Context())
+		if loadErr != nil || published == nil {
+			adminConfigRedirect(w, r, "Publish a valid Intention Routing RAG workflow before selecting it for auto cron AI messages.")
+			return
+		}
+		var graph common.IntentionRoutingRAGGraph
+		if err := json.Unmarshal(published.Graph, &graph); err != nil {
+			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is invalid.")
+			return
+		}
+		documents, docsErr := db.ListRAGDocuments()
+		if docsErr != nil {
+			adminConfigRedirect(w, r, "Failed to verify workflow RAG documents.")
+			return
+		}
+		documentSet := make(map[string]struct{}, len(documents))
+		for name := range documents {
+			documentSet[name] = struct{}{}
+		}
+		if issues := common.ValidateIntentionRoutingRAGGraph(graph, documentSet); len(issues) > 0 {
+			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is no longer valid: "+issues[0].Message)
+			return
+		}
+	}
 	if err := db.UpdateProjectEnvVariables(map[string]string{
 		"CRON_SEND_MIN_DELAY_SECONDS": minDelay,
 		"CRON_SEND_MAX_DELAY_SECONDS": maxDelay,
+		"AUTO_AI_RAG_MODE":            string(ragMode),
 	}); err != nil {
 		adminConfigRedirect(w, r, "Failed to save cron delay settings.")
 		return
 	}
-	adminRecordConfigUpdateHistory(r, "update_cron_delay", "Updated CRON_SEND_MIN_DELAY_SECONDS and CRON_SEND_MAX_DELAY_SECONDS")
-	adminConfigRedirect(w, r, "Cron delay settings updated.")
+	adminRecordConfigUpdateHistory(r, "update_cron_delay", "Updated auto cron AI RAG mode and cron send delay settings")
+	adminConfigRedirect(w, r, "Auto cron AI retrieval and delay settings updated.")
+}
+
+func adminAutoAIRAGModeOptions(value string) string {
+	mode := ai.NormalizeRAGExecutionMode(value)
+	if mode == ai.RAGExecutionModeConfigured {
+		mode = ai.RAGExecutionModeDisabled
+	}
+	options := []struct {
+		Value ai.RAGExecutionMode
+		Label string
+	}{
+		{ai.RAGExecutionModeDisabled, "Disabled (no RAG)"},
+		{ai.RAGExecutionModeStandard, "Standard RAG (all documents)"},
+		{ai.RAGExecutionModeIntention, "Intention Routing RAG"},
+	}
+	var builder strings.Builder
+	for _, option := range options {
+		selected := ""
+		if option.Value == mode {
+			selected = ` selected`
+		}
+		builder.WriteString(`<option value="` + html.EscapeString(string(option.Value)) + `"` + selected + `>` + html.EscapeString(option.Label) + `</option>`)
+	}
+	return builder.String()
 }
 
 func adminConfigurationUpdateInterventionMessageHandler(w http.ResponseWriter, r *http.Request) {

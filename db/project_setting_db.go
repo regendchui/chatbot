@@ -29,6 +29,7 @@ const (
 	defaultInboundReplayWindowSecs         = 10
 	defaultCronSendMinDelaySecs            = 30
 	defaultCronSendMaxDelaySecs            = 45
+	defaultAutoAIRAGMode                   = "disabled"
 	defaultInterventionEndMessageVal       = "As the service period is over, it is time to say goodbye. Thank you for using our service."
 	defaultRequireVerification             = false
 	defaultAdminPanelUTCOffsetHours        = 0
@@ -275,6 +276,7 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"INBOUND_REPLAY_GRACE_WINDOW_SECONDS": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("INBOUND_REPLAY_GRACE_WINDOW_SECONDS")), strconv.Itoa(defaultInboundReplayWindowSecs)),
 		"CRON_SEND_MIN_DELAY_SECONDS":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("CRON_SEND_MIN_DELAY_SECONDS")), strconv.Itoa(defaultCronSendMinDelaySecs)),
 		"CRON_SEND_MAX_DELAY_SECONDS":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("CRON_SEND_MAX_DELAY_SECONDS")), strconv.Itoa(defaultCronSendMaxDelaySecs)),
+		"AUTO_AI_RAG_MODE":                    nonEmptyOrDefault(strings.TrimSpace(os.Getenv("AUTO_AI_RAG_MODE")), defaultAutoAIRAGMode),
 		"INTERVENTION_END_MESSAGE":            nonEmptyOrDefault(strings.TrimSpace(os.Getenv("INTERVENTION_END_MESSAGE")), defaultInterventionEndMessageVal),
 		"REQUIRE_VERIFICATION":                nonEmptyOrDefault(requireVerification, boolString(defaultRequireVerification)),
 		"ADMIN_PANEL_UTC_OFFSET_HOURS":        nonEmptyOrDefault(strings.TrimSpace(os.Getenv("ADMIN_PANEL_UTC_OFFSET_HOURS")), strconv.Itoa(defaultAdminPanelUTCOffsetHours)),

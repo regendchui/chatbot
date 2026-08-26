@@ -213,6 +213,7 @@ Set these in `.env` before the first `docker compose up`. Many are also editable
 | `AI_SYSTEM_PROMPT`, `AI_MEMORY_MESSAGE_LIMIT` | AI behavior and memory window size |
 | `RAG_ENABLED` | Enables RAG retrieval for AI response generation |
 | `INTENTION_ROUTING_RAG_ENABLED` | Replaces standard all-document retrieval with the published workflow from **Admin → Intention Routing RAG** |
+| `AUTO_AI_RAG_MODE` | Retrieval mode for scheduled auto cron AI messages: `disabled`, `standard`, or `intention` |
 | `REQUIRE_VERIFICATION` | Gate unverified participants (also see `verification_message` in survey JSON) |
 | `INBOUND_REPLAY_GRACE_WINDOW_SECONDS` | Limits replay of old inbound events on reconnect |
 | `CRON_SEND_MIN_DELAY_SECONDS`, `CRON_SEND_MAX_DELAY_SECONDS` | Random delay between cron outbound sends |

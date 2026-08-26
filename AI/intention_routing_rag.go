@@ -84,11 +84,44 @@ func intentionRoutingRAGEnabled() bool {
 	return db.GetProjectSettingBool("INTENTION_ROUTING_RAG_ENABLED", false)
 }
 
+type RAGExecutionMode string
+
+const (
+	RAGExecutionModeConfigured RAGExecutionMode = "configured"
+	RAGExecutionModeDisabled   RAGExecutionMode = "disabled"
+	RAGExecutionModeStandard   RAGExecutionMode = "standard"
+	RAGExecutionModeIntention  RAGExecutionMode = "intention"
+)
+
+func NormalizeRAGExecutionMode(value string) RAGExecutionMode {
+	switch RAGExecutionMode(strings.ToLower(strings.TrimSpace(value))) {
+	case RAGExecutionModeDisabled:
+		return RAGExecutionModeDisabled
+	case RAGExecutionModeStandard:
+		return RAGExecutionModeStandard
+	case RAGExecutionModeIntention:
+		return RAGExecutionModeIntention
+	default:
+		return RAGExecutionModeConfigured
+	}
+}
+
 func BuildConfiguredRAGContextWithDebug(ctx context.Context, query string, memory []common.Message, participantID string) (string, string, error) {
-	if !ragEnabled() {
+	return BuildRAGContextForModeWithDebug(ctx, query, memory, participantID, RAGExecutionModeConfigured)
+}
+
+func BuildRAGContextForModeWithDebug(ctx context.Context, query string, memory []common.Message, participantID string, mode RAGExecutionMode) (string, string, error) {
+	mode = NormalizeRAGExecutionMode(string(mode))
+	if mode == RAGExecutionModeDisabled {
+		return "", "rag_mode=disabled", nil
+	}
+	if mode == RAGExecutionModeStandard {
+		return buildRAGContextEnabled(query)
+	}
+	if mode == RAGExecutionModeConfigured && !ragEnabled() {
 		return "", "rag_enabled=false", nil
 	}
-	if !intentionRoutingRAGEnabled() {
+	if mode == RAGExecutionModeConfigured && !intentionRoutingRAGEnabled() {
 		return buildRAGContextInternal(query)
 	}
 	published, err := db.LoadPublishedIntentionRoutingRAGWorkflow(ctx)

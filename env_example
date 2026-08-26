@@ -11,6 +11,7 @@ OPENROUTER_URL=https://openrouter.ai/api/v1/chat/completions
 
 RAG_ENABLED=false
 INTENTION_ROUTING_RAG_ENABLED=false
+AUTO_AI_RAG_MODE=disabled
 RAG_CHUNK_SIZE=800
 RAG_CHUNK_OVERLAP=100
 RAG_TOP_K=3

@@ -200,6 +200,10 @@ func buildRAGContextInternal(query string) (string, string, error) {
 	if !ragEnabled() {
 		return "", "rag_enabled=false", nil
 	}
+	return buildRAGContextEnabled(query)
+}
+
+func buildRAGContextEnabled(query string) (string, string, error) {
 	q := strings.TrimSpace(query)
 	if q == "" {
 		return "", "rag_enabled=true query_empty=true", nil

@@ -2,6 +2,7 @@ package ai
 
 import ( // Import packages needed for OpenRouter API requests and prompt building.
 	"bytes"         // Build HTTP request body from JSON bytes.
+	"context"       // Carry RAG execution deadlines and cancellation.
 	"encoding/json" // Marshal request payload and unmarshal response payload.
 	"fmt"           // Format prompt text and wrapped errors.
 	"io"            // Read HTTP response body bytes.
@@ -66,6 +67,10 @@ func GenerateAIResponse(incomingText string, memory []common.Message, surveyCont
 }
 
 func GenerateAIResponseForParticipant(participantID string, incomingText string, memory []common.Message, surveyContext string, phaseContext string, latestMedium LatestInboundMedium) (string, error) {
+	return GenerateAIResponseForParticipantWithRAGMode(participantID, incomingText, memory, surveyContext, phaseContext, latestMedium, RAGExecutionModeConfigured)
+}
+
+func GenerateAIResponseForParticipantWithRAGMode(participantID string, incomingText string, memory []common.Message, surveyContext string, phaseContext string, latestMedium LatestInboundMedium, ragMode RAGExecutionMode) (string, error) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")) // Read OpenRouter API key from environment.
 	if apiKey == "" {
 		apiKey = strings.TrimSpace(os.Getenv("GEMINI_API_KEY")) // Backward-compatible fallback.
@@ -90,7 +95,7 @@ func GenerateAIResponseForParticipant(participantID string, incomingText string,
 		systemPrompt = defaultSystemPrompt // Use built-in default system prompt.
 	}
 
-	ragContext, ragDebug, err := BuildRAGContextWithDebugForParticipant(incomingText, participantID, memory)
+	ragContext, ragDebug, err := BuildRAGContextForModeWithDebug(context.Background(), incomingText, memory, participantID, ragMode)
 	if err != nil {
 		ragDebug = "rag_error=" + err.Error()
 		ragContext = ""

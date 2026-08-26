@@ -190,7 +190,11 @@ func composeAutoAIMessageWithContext(participantPhone string) (string, error) {
 	if instruction == "" {
 		instruction = "This is a scheduled proactive check-in. Write one short, supportive WhatsApp message."
 	}
-	msg, err := ai.GenerateAIResponseForParticipant(phone, instruction, memoryMessages, surveyContext, phaseContext, ai.LatestInboundMediumNone)
+	ragMode := ai.NormalizeRAGExecutionMode(db.GetProjectSettingString("AUTO_AI_RAG_MODE", "disabled"))
+	if ragMode == ai.RAGExecutionModeConfigured {
+		ragMode = ai.RAGExecutionModeDisabled
+	}
+	msg, err := ai.GenerateAIResponseForParticipantWithRAGMode(phone, instruction, memoryMessages, surveyContext, phaseContext, ai.LatestInboundMediumNone, ragMode)
 	if err != nil {
 		return "", err
 	}
