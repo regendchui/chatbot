@@ -12,10 +12,12 @@ import (
 var intentionRoutingRAGIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 const (
-	IntentionRoutingRAGSchemaVersion = 1
-	IntentionRoutingRAGMaxBlocks     = 100
-	IntentionRoutingRAGMaxOptions    = 20
-	IntentionRoutingRAGMaxDepth      = 10
+	IntentionRoutingRAGSchemaVersion      = 1
+	IntentionRoutingRAGMaxBlocks          = 100
+	IntentionRoutingRAGMaxOptions         = 20
+	IntentionRoutingRAGMaxDepth           = 10
+	IntentionRoutingRAGMaxInboundMessages = 20
+	DefaultIntentionRoutingPrompt         = "Classify the user enquiry against every intention option."
 )
 
 type IntentionRoutingRAGGraph struct {
@@ -47,11 +49,13 @@ type IntentionRoutingRAGNode struct {
 }
 
 type IntentionRoutingRAGRoute struct {
-	Mode      string                      `json:"mode"`
-	Model     string                      `json:"model"`
-	Threshold float64                     `json:"threshold"`
-	Options   []IntentionRoutingRAGOption `json:"options"`
-	Documents []string                    `json:"documents,omitempty"`
+	Mode                string                      `json:"mode"`
+	Model               string                      `json:"model"`
+	Threshold           float64                     `json:"threshold"`
+	InboundMessageCount int                         `json:"inbound_message_count,omitempty"`
+	Prompt              string                      `json:"prompt,omitempty"`
+	Options             []IntentionRoutingRAGOption `json:"options"`
+	Documents           []string                    `json:"documents,omitempty"`
 }
 
 type IntentionRoutingRAGOption struct {
@@ -62,7 +66,22 @@ type IntentionRoutingRAGOption struct {
 }
 
 type IntentionRoutingRAGRetrieval struct {
-	Documents []IntentionRoutingRAGDocument `json:"documents"`
+	InboundMessageCount int                           `json:"inbound_message_count,omitempty"`
+	Documents           []IntentionRoutingRAGDocument `json:"documents"`
+}
+
+func EffectiveIntentionRoutingRAGInboundMessageCount(value int) int {
+	if value <= 0 {
+		return 1
+	}
+	return value
+}
+
+func EffectiveIntentionRoutingPrompt(value string) string {
+	if prompt := strings.TrimSpace(value); prompt != "" {
+		return prompt
+	}
+	return DefaultIntentionRoutingPrompt
 }
 
 type IntentionRoutingRAGDocument struct {
@@ -285,6 +304,12 @@ func validateRoutingNode(path string, node IntentionRoutingRAGNode, documents ma
 	if math.IsNaN(route.Threshold) || math.IsInf(route.Threshold, 0) || route.Threshold < 0 || route.Threshold > 1 {
 		add(path+".routing.threshold", "must be between 0 and 1")
 	}
+	if route.InboundMessageCount < 0 || route.InboundMessageCount > IntentionRoutingRAGMaxInboundMessages {
+		add(path+".routing.inbound_message_count", fmt.Sprintf("must be between 1 and %d", IntentionRoutingRAGMaxInboundMessages))
+	}
+	if utf8.RuneCountInString(strings.TrimSpace(route.Prompt)) > 8000 {
+		add(path+".routing.prompt", "cannot exceed 8000 characters")
+	}
 	if len(route.Options) == 0 {
 		add(path+".routing.options", "must contain at least one intention option")
 	}
@@ -349,6 +374,9 @@ func validateRoutingNode(path string, node IntentionRoutingRAGNode, documents ma
 }
 
 func validateRAGNode(path string, node IntentionRoutingRAGNode, documents map[string]struct{}, add func(string, string)) {
+	if node.RAG.InboundMessageCount < 0 || node.RAG.InboundMessageCount > IntentionRoutingRAGMaxInboundMessages {
+		add(path+".rag.inbound_message_count", fmt.Sprintf("must be between 1 and %d", IntentionRoutingRAGMaxInboundMessages))
+	}
 	if len(node.RAG.Documents) == 0 {
 		add(path+".rag.documents", "must contain at least one document")
 	}

@@ -93,6 +93,8 @@ Each Routing block contains:
 - routing mode: required, `single` or `multiple`;
 - model: required OpenRouter model identifier;
 - threshold: required decimal probability from `0` through `1`;
+- inbound message count: integer from `1` through `20`, default `1` for backward compatibility;
+- routing instruction prompt: editable per block, defaulting to `Classify the user enquiry against every intention option.`;
 - intention options: at least one;
 - optional routing documents: zero or more existing indexed RAG documents.
 
@@ -125,7 +127,7 @@ Before the routing call, retrieve supporting chunks only from the routing docume
 
 The routing model receives:
 
-- the original user enquiry;
+- the configured number of latest inbound user messages in chronological order;
 - the Routing block name and routing instructions;
 - every option ID, name, and description in that block;
 - retrieved routing-document context, if configured;
@@ -184,6 +186,7 @@ A later block reached through more than one branch must execute only once per us
 Each RAG block contains:
 
 - block name: required and unique within the workflow;
+- inbound message count: integer from `1` through `20`, default `1`;
 - one or more existing indexed RAG documents;
 - per-document `top_k`: required positive integer;
 - per-document `min_similarity`: required decimal from `-1` through `1`.
@@ -201,7 +204,7 @@ Example:
 | `location.pdf` | 4 | 0.30 |
 | `phone.pdf` | 2 | 0.45 |
 
-For this block, the enquiry is embedded once and compared only with chunks belonging to the two selected documents. Up to four qualifying chunks are selected from `location.pdf`, and up to two qualifying chunks are selected independently from `phone.pdf`.
+For this block, the configured latest inbound messages are combined in chronological order and embedded once, then compared only with chunks belonging to the two selected documents. Up to four qualifying chunks are selected from `location.pdf`, and up to two qualifying chunks are selected independently from `phone.pdf`.
 
 The global embedding model and embedding URL remain in effect because stored document vectors and query vectors must use a compatible embedding model. Chunk size and overlap remain indexing-time settings and are not overridden by a RAG block.
 
@@ -466,6 +469,8 @@ Do not render internal probabilities or trace data to chatbot users. The admin t
 - A new workflow begins with exactly one non-deletable Input block.
 - Administrators can add, configure, move, connect, duplicate, and delete Routing and RAG blocks.
 - Routing options have required descriptions and individual output connections.
+- Routing and RAG blocks independently configure how many latest inbound messages form their query.
+- Each Routing block can customize its routing instruction while retaining the original instruction as its default.
 - Invalid cycles, unreachable blocks, missing documents, and invalid thresholds prevent publication.
 - Draft edits do not affect live chatbot requests until published.
 
@@ -477,6 +482,7 @@ Do not render internal probabilities or trace data to chatbot users. The admin t
 - Multiple routing selects every option strictly above threshold.
 - No match produces no downstream retrieval and never triggers all-document fallback.
 - Routing documents affect classification context but are not automatically added to the generation prompt.
+- The configured inbound messages are evaluated oldest to newest so a follow-up such as a location can retain the preceding question.
 
 ### Retrieval and prompt generation
 
@@ -524,6 +530,7 @@ Do not render internal probabilities or trace data to chatbot users. The admin t
 - create blocks from the palette and drag them on the canvas;
 - connect each intention option to a downstream block;
 - edit model, mode, threshold, descriptions, documents, top K, and minimum similarity;
+- edit per-block inbound message counts and the per-Routing-block instruction prompt;
 - show errors on the responsible block and field;
 - warn about unsaved changes;
 - save/reload positions and viewport;

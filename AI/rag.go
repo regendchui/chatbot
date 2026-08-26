@@ -20,6 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"whatsapp-bot/common"
 	"whatsapp-bot/db"
 
 	pdf "github.com/ledongthuc/pdf"
@@ -183,8 +184,16 @@ func BuildRAGContext(query string) (string, error) {
 }
 
 // BuildRAGContextWithDebug returns RAG context plus debug diagnostics for logging.
-func BuildRAGContextWithDebug(query string) (string, string, error) {
-	return BuildConfiguredRAGContextWithDebug(context.Background(), query)
+func BuildRAGContextWithDebug(query string, memory ...[]common.Message) (string, string, error) {
+	var history []common.Message
+	if len(memory) > 0 {
+		history = memory[0]
+	}
+	return BuildConfiguredRAGContextWithDebug(context.Background(), query, history, "")
+}
+
+func BuildRAGContextWithDebugForParticipant(query string, participantID string, memory []common.Message) (string, string, error) {
+	return BuildConfiguredRAGContextWithDebug(context.Background(), query, memory, participantID)
 }
 
 func buildRAGContextInternal(query string) (string, string, error) {

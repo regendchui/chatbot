@@ -68,7 +68,7 @@ LIMIT $1`
 	}
 
 	rows, err := db.DB.Query(context.Background(), query, args...) // Execute memory query against PostgreSQL.
-	if err != nil {                                              // Check query execution errors.
+	if err != nil {                                                // Check query execution errors.
 		return nil, fmt.Errorf("query last messages: %w", err) // Return wrapped query error.
 	}
 	defer rows.Close() // Ensure cursor resources are released.
@@ -132,6 +132,48 @@ LIMIT $1`
 
 	return messages, nil // Return final decrypted and ordered memory list.
 } // End GetLastMessages function.
+
+// GetLastInboundMessagesForParticipant loads exactly the latest N user messages,
+// independent of how many outbound replies exist between them.
+func GetLastInboundMessagesForParticipant(participantID string, limit int) ([]common.Message, error) {
+	participantID = common.DigitsOnly(strings.TrimSpace(participantID))
+	if participantID == "" {
+		return nil, fmt.Errorf("participant ID is empty")
+	}
+	if limit <= 0 {
+		limit = 1
+	}
+	encryptedParticipantID, err := common.EncryptPhone(participantID)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt participant ID for inbound memory query: %w", err)
+	}
+	rows, err := db.DB.Query(context.Background(), `
+SELECT id, content, direction, nature, to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF')
+FROM conversation
+WHERE participant_phone = $1 AND direction = 'inbound'
+ORDER BY created_at DESC, id DESC
+LIMIT $2`, encryptedParticipantID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query last inbound messages: %w", err)
+	}
+	defer rows.Close()
+	messages := make([]common.Message, 0, limit)
+	for rows.Next() {
+		var message common.Message
+		if err := rows.Scan(&message.ID, &message.Content, &message.Direction, &message.Nature, &message.Timestamp); err != nil {
+			return nil, fmt.Errorf("scan inbound memory row: %w", err)
+		}
+		message.Sender = "USER"
+		message.Receiver = "AI"
+		message.Content = strings.TrimSpace(message.Content)
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate inbound memory rows: %w", err)
+	}
+	sort.Slice(messages, func(i, j int) bool { return messages[i].ID < messages[j].ID })
+	return messages, nil
+}
 
 type participantSurveyCompletion struct {
 	BaselineCompletedAt time.Time

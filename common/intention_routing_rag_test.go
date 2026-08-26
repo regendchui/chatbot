@@ -47,6 +47,29 @@ func TestValidateIntentionRoutingRAGGraphRejectsMissingDocument(t *testing.T) {
 	}
 }
 
+func TestIntentionRoutingDefaultsRemainBackwardCompatible(t *testing.T) {
+	if got := EffectiveIntentionRoutingRAGInboundMessageCount(0); got != 1 {
+		t.Fatalf("legacy missing count should default to 1, got %d", got)
+	}
+	if got := EffectiveIntentionRoutingPrompt(""); got != DefaultIntentionRoutingPrompt {
+		t.Fatalf("legacy missing prompt got %q", got)
+	}
+	graph := validRoutingRAGGraph()
+	if issues := ValidateIntentionRoutingRAGGraph(graph, map[string]struct{}{"location.pdf": {}}); len(issues) != 0 {
+		t.Fatalf("legacy zero-value settings should remain valid: %#v", issues)
+	}
+}
+
+func TestValidateIntentionRoutingRAGGraphRejectsInvalidMessageCounts(t *testing.T) {
+	graph := validRoutingRAGGraph()
+	graph.Nodes[1].Routing.InboundMessageCount = IntentionRoutingRAGMaxInboundMessages + 1
+	graph.Nodes[2].RAG.InboundMessageCount = -1
+	issues := ValidateIntentionRoutingRAGGraph(graph, map[string]struct{}{"location.pdf": {}})
+	if len(issues) < 2 {
+		t.Fatalf("expected inbound message count issues, got %#v", issues)
+	}
+}
+
 func hasValidationMessage(issues []IntentionRoutingRAGValidationIssue, needle string) bool {
 	for _, issue := range issues {
 		if contains(issue.Message, needle) {

@@ -190,7 +190,7 @@ func composeAutoAIMessageWithContext(participantPhone string) (string, error) {
 	if instruction == "" {
 		instruction = "This is a scheduled proactive check-in. Write one short, supportive WhatsApp message."
 	}
-	msg, err := ai.GenerateAIResponse(instruction, memoryMessages, surveyContext, phaseContext, ai.LatestInboundMediumNone)
+	msg, err := ai.GenerateAIResponseForParticipant(phone, instruction, memoryMessages, surveyContext, phaseContext, ai.LatestInboundMediumNone)
 	if err != nil {
 		return "", err
 	}

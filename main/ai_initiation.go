@@ -32,7 +32,7 @@ func sendInitialAIMessageToParticipant(client *whatsmeow.Client, participantPhon
 	if err != nil {
 		return fmt.Errorf("load phase context: %w", err)
 	}
-	reply, err := ai.GenerateAIResponse(baselineInitiationPrompt, memoryMessages, surveyContext, phaseContext, ai.LatestInboundMediumNone)
+	reply, err := ai.GenerateAIResponseForParticipant(phone, baselineInitiationPrompt, memoryMessages, surveyContext, phaseContext, ai.LatestInboundMediumNone)
 	if err != nil {
 		return fmt.Errorf("generate initial AI message: %w", err)
 	}
@@ -45,4 +45,3 @@ func sendPostBaselineMessage(client *whatsmeow.Client, participantPhone string) 
 	}
 	return sendInitialAIMessageToParticipant(client, participantPhone)
 }
-

@@ -23,15 +23,17 @@ import (
 var intentionRoutingRAGEditorHTML string
 
 type intentionRoutingRAGEditorState struct {
-	Graph             common.IntentionRoutingRAGGraph `json:"graph"`
-	Status            string                          `json:"status"`
-	Revision          int                             `json:"revision"`
-	LockVersion       int                             `json:"lock_version"`
-	PublishedRevision int                             `json:"published_revision"`
-	FeatureEnabled    bool                            `json:"feature_enabled"`
-	DefaultModel      string                          `json:"default_model"`
-	Documents         []string                        `json:"documents"`
-	UpdatedAt         string                          `json:"updated_at,omitempty"`
+	Graph                common.IntentionRoutingRAGGraph `json:"graph"`
+	Status               string                          `json:"status"`
+	Revision             int                             `json:"revision"`
+	LockVersion          int                             `json:"lock_version"`
+	PublishedRevision    int                             `json:"published_revision"`
+	FeatureEnabled       bool                            `json:"feature_enabled"`
+	DefaultModel         string                          `json:"default_model"`
+	DefaultRoutingPrompt string                          `json:"default_routing_prompt"`
+	MaxInboundMessages   int                             `json:"max_inbound_messages"`
+	Documents            []string                        `json:"documents"`
+	UpdatedAt            string                          `json:"updated_at,omitempty"`
 }
 
 type intentionRoutingRAGGraphRequest struct {
@@ -278,10 +280,12 @@ func adminIntentionRoutingRAGTestHandler(w http.ResponseWriter, r *http.Request)
 func loadIntentionRoutingRAGEditorState(ctx context.Context) (intentionRoutingRAGEditorState, error) {
 	defaultModel := strings.TrimSpace(db.GetProjectSettingString("OPENROUTER_MODEL", "google/gemini-2.5-flash"))
 	state := intentionRoutingRAGEditorState{
-		Graph:          common.DefaultIntentionRoutingRAGGraph(defaultModel),
-		Status:         "new",
-		DefaultModel:   defaultModel,
-		FeatureEnabled: db.GetProjectSettingBool("INTENTION_ROUTING_RAG_ENABLED", false),
+		Graph:                common.DefaultIntentionRoutingRAGGraph(defaultModel),
+		Status:               "new",
+		DefaultModel:         defaultModel,
+		DefaultRoutingPrompt: common.DefaultIntentionRoutingPrompt,
+		MaxInboundMessages:   common.IntentionRoutingRAGMaxInboundMessages,
+		FeatureEnabled:       db.GetProjectSettingBool("INTENTION_ROUTING_RAG_ENABLED", false),
 	}
 	docs, err := db.ListRAGDocuments()
 	if err != nil {
@@ -362,11 +366,20 @@ func validateIntentionRoutingRAGDraftShape(graph common.IntentionRoutingRAGGraph
 			if len([]rune(node.Routing.Model)) > 240 {
 				return "A routing model identifier cannot exceed 240 characters."
 			}
+			if len([]rune(node.Routing.Prompt)) > 8000 {
+				return "A routing prompt cannot exceed 8000 characters."
+			}
+			if node.Routing.InboundMessageCount < 0 || node.Routing.InboundMessageCount > common.IntentionRoutingRAGMaxInboundMessages {
+				return fmt.Sprintf("Routing inbound message count must be between 1 and %d.", common.IntentionRoutingRAGMaxInboundMessages)
+			}
 			for _, option := range node.Routing.Options {
 				if len([]rune(option.Name)) > 160 || len([]rune(option.Description)) > 4000 {
 					return "An intention option name or description is too long."
 				}
 			}
+		}
+		if node.RAG != nil && (node.RAG.InboundMessageCount < 0 || node.RAG.InboundMessageCount > common.IntentionRoutingRAGMaxInboundMessages) {
+			return fmt.Sprintf("RAG inbound message count must be between 1 and %d.", common.IntentionRoutingRAGMaxInboundMessages)
 		}
 	}
 	if inputCount != 1 {

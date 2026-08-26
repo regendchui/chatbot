@@ -62,6 +62,10 @@ type openRouterGenerateResponse struct {
 }
 
 func GenerateAIResponse(incomingText string, memory []common.Message, surveyContext string, phaseContext string, latestMedium LatestInboundMedium) (string, error) { // Generate response text using OpenRouter with DB memory context.
+	return GenerateAIResponseForParticipant("", incomingText, memory, surveyContext, phaseContext, latestMedium)
+}
+
+func GenerateAIResponseForParticipant(participantID string, incomingText string, memory []common.Message, surveyContext string, phaseContext string, latestMedium LatestInboundMedium) (string, error) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")) // Read OpenRouter API key from environment.
 	if apiKey == "" {
 		apiKey = strings.TrimSpace(os.Getenv("GEMINI_API_KEY")) // Backward-compatible fallback.
@@ -86,7 +90,7 @@ func GenerateAIResponse(incomingText string, memory []common.Message, surveyCont
 		systemPrompt = defaultSystemPrompt // Use built-in default system prompt.
 	}
 
-	ragContext, ragDebug, err := BuildRAGContextWithDebug(incomingText)
+	ragContext, ragDebug, err := BuildRAGContextWithDebugForParticipant(incomingText, participantID, memory)
 	if err != nil {
 		ragDebug = "rag_error=" + err.Error()
 		ragContext = ""

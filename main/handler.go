@@ -286,7 +286,7 @@ func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, sen
 	defer typing.Stop()
 
 	memoryMessages, err := ai.GetLastMessagesForParticipant(senderPhone, ai.GetAIMemoryMessageLimitFromEnv()) // Load participant-scoped chat memory for AI.
-	if err != nil {                                                                // Check memory loading failure.
+	if err != nil {                                                                                           // Check memory loading failure.
 		log.Println("Memory load error:", err) // Log error and continue with minimal context.
 		memoryMessages = []common.Message{}    // Use empty memory fallback when query fails.
 	}
@@ -302,7 +302,7 @@ func generateAndSendAIResponse(client *whatsmeow.Client, replyJID types.JID, sen
 		phaseContext = ""
 	}
 
-	reply, err := ai.GenerateAIResponse(prompt, memoryMessages, surveyContext, phaseContext, latestMedium)
+	reply, err := ai.GenerateAIResponseForParticipant(senderPhone, prompt, memoryMessages, surveyContext, phaseContext, latestMedium)
 	if err != nil {
 		log.Println("AI response error:", err)
 		if !shouldSendAIErrorFallback() {

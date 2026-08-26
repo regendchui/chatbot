@@ -95,3 +95,24 @@ func stringsContain(value, needle string) bool {
 	}
 	return needle == ""
 }
+
+func TestBuildIntentionRoutingRAGEnquiryUsesConfiguredLatestInboundMessages(t *testing.T) {
+	memory := []common.Message{
+		{Direction: "inbound", Content: "What is the nearest smoking cessation clinic?"},
+		{Direction: "outbound", Content: "Which district are you in?"},
+		{Direction: "inbound", Content: "I live in Wong Tai Sin"},
+	}
+	if got, want := buildIntentionRoutingRAGEnquiry("I live in Wong Tai Sin", memory, 2), "What is the nearest smoking cessation clinic?\nI live in Wong Tai Sin"; got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	if got, want := buildIntentionRoutingRAGEnquiry("I live in Wong Tai Sin", memory, 1), "I live in Wong Tai Sin"; got != want {
+		t.Fatalf("one-message compatibility got %q want %q", got, want)
+	}
+}
+
+func TestBuildIntentionRoutingRAGEnquiryIncludesUnpersistedCurrentMessage(t *testing.T) {
+	memory := []common.Message{{Direction: "inbound", Content: "Find a clinic near me"}}
+	if got, want := buildIntentionRoutingRAGEnquiry("I am in Kowloon", memory, 2), "Find a clinic near me\nI am in Kowloon"; got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
