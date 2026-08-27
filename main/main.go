@@ -103,6 +103,11 @@ func main() { // Start application setup and keep bot alive.
 
 	// Create logger for WhatsApp network/client activity.
 	clientLogger := waLog.Stdout("WA-CLIENT", "INFO", true)
+	if err := refreshWhatsAppWebVersion(context.Background()); err != nil {
+		// Continue with the current library's embedded version. Keeping the
+		// dependency current is still the primary compatibility safeguard.
+		log.Printf("WhatsApp Web version refresh unavailable; using embedded version: %v", err)
+	}
 
 	// Build the WhatsApp client using stored device credentials.
 	client := whatsmeow.NewClient(deviceStore, clientLogger)
@@ -161,6 +166,10 @@ func main() { // Start application setup and keep bot alive.
 				reason = v.Reason.String()
 			}
 			go handleWhatsAppLoggedOutEvent(client, container, waState, reason)
+		case *events.ClientOutdated:
+			waState.setLastEvent("err-client-outdated")
+			waState.setLastError("WhatsApp rejected the client version; refreshing and reconnecting")
+			go recoverWhatsAppClientOutdated(client, waState)
 		}
 	})
 	err = connectWhatsAppWithQR(client, waState) // Connect and start QR watcher when login is needed.
