@@ -70,6 +70,8 @@ func TestGraphRAGPreviewUIIncludesNavigationAndDocumentLoading(t *testing.T) {
 		`graphBuildTypeColors`,
 		`137.508`,
 		`legendHeight`,
+		`footerHeight`,
+		`mapBottom`,
 		`graphExportPNG`,
 		`XMLSerializer`,
 		`conceptMode`,

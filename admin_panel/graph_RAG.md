@@ -196,6 +196,8 @@ It provides:
   relationships (defaults: 20 and 30);
 - collision-free category colors generated from the visible entity-type set,
   with a dedicated legend band separated from the concept-map layout;
+- a reserved footer band that anchors the displayed/total count summary at the
+  lower-right corner without allowing graph nodes to overlap it;
 - interactive SVG query and document previews with zoom in/out, fit-to-view,
   drag panning, multi-line bounded card labels, relationship tooltips, and an
   accessible evidence table; and
