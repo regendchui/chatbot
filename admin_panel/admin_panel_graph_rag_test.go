@@ -50,6 +50,33 @@ func TestGraphRAGTableScrollerIsBoundedAndAccessible(t *testing.T) {
 	}
 }
 
+func TestGraphRAGPreviewUIIncludesNavigationAndDocumentLoading(t *testing.T) {
+	markup := graphRAGPreviewControls() + graphRAGPreviewScript()
+	for _, want := range []string{
+		`id="graph-zoom-out"`,
+		`id="graph-zoom-in"`,
+		`id="graph-fit"`,
+		`id="graph-zoom-level"`,
+		`/admin/graph-rag/document-preview`,
+		`pointerdown`,
+		`wheel`,
+	} {
+		if !strings.Contains(markup, want) {
+			t.Errorf("graph preview UI missing %q", want)
+		}
+	}
+}
+
+func TestGraphRAGDocumentPreviewButtonEscapesDocumentName(t *testing.T) {
+	got := graphRAGDocumentPreviewButton(`location" onmouseover="alert(1).pdf`)
+	if strings.Contains(got, `onmouseover="alert(1)`) {
+		t.Fatalf("document preview button contains unescaped attribute injection: %s", got)
+	}
+	if !strings.Contains(got, `class="graph-document-preview"`) || !strings.Contains(got, `Preview graph`) {
+		t.Fatalf("document preview button is incomplete: %s", got)
+	}
+}
+
 func TestGraphRAGDeleteConfirmationRequiresLiteralPhrase(t *testing.T) {
 	for _, value := range []string{"confirm delete", " confirm delete "} {
 		if !graphRAGDeleteConfirmationMatches(value) {

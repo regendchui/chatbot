@@ -186,8 +186,18 @@ It provides:
 - authenticated extraction audits with provider output and validation errors;
 - natural-language retrieval testing;
 - resolved evidence, provenance, generated context, and trace details;
-- read-only SVG neighborhood preview and an accessible evidence table; and
+- a read-only preview of every ready document's active ingestion snapshot,
+  including entities that do not have extracted relationships;
+- interactive SVG query and document previews with zoom in/out, fit-to-view,
+  drag panning, bounded card labels, relationship tooltips, and an accessible
+  evidence table; and
 - confirmed full-graph deletion without deleting traditional RAG documents.
+
+The document preview is bounded to 250 entities and 500 relationships per
+request so a large ingestion cannot freeze the admin page. Counts in the
+document table continue to show the full snapshot size. Longer entity names
+are wrapped and visually shortened inside node cards; the complete name and
+type remain available in the SVG tooltip and evidence table.
 
 The document-ingestion, background-jobs, and extraction-audit tables each use
 an independent bounded scroll area. This keeps the remaining controls reachable

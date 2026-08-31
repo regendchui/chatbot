@@ -704,6 +704,89 @@ func QueryGraphRAG(ctx context.Context, seeds []string, documentNames []string, 
 	return result, nil
 }
 
+// PreviewGraphRAGDocument returns a bounded, read-only view of one document's
+// active graph snapshot. It intentionally bypasses query seed resolution so an
+// administrator can inspect what ingestion produced, including isolated
+// entities that are not part of an extracted relationship.
+func PreviewGraphRAGDocument(ctx context.Context, documentName string, maxEntities, maxRelationships int) (GraphRAGQueryResult, error) {
+	result := GraphRAGQueryResult{}
+	name := strings.TrimSpace(documentName)
+	if name == "" {
+		return result, fmt.Errorf("document name is required")
+	}
+	if maxEntities < 1 {
+		maxEntities = 200
+	}
+	if maxEntities > 500 {
+		maxEntities = 500
+	}
+	if maxRelationships < 1 {
+		maxRelationships = 400
+	}
+	if maxRelationships > 1000 {
+		maxRelationships = 1000
+	}
+	var snapshotID string
+	if err := DB.QueryRow(ctx, `SELECT active_snapshot_id FROM graph_rag_documents WHERE document_name=$1 AND selected=TRUE AND active_snapshot_id<>''`, name).Scan(&snapshotID); err != nil {
+		if err == pgx.ErrNoRows {
+			return result, fmt.Errorf("document does not have a ready graph snapshot")
+		}
+		return result, err
+	}
+	result.GraphRevision = snapshotID
+	conn, err := DB.Acquire(ctx)
+	if err != nil {
+		return result, err
+	}
+	defer conn.Release()
+	if err := configureAGEConnection(ctx, conn); err != nil {
+		return result, err
+	}
+	entityRows, err := queryAGECypher(ctx, conn, `MATCH (:Chunk {snapshot_id:$snapshot_id})-[:MENTIONS]->(e:Entity) RETURN DISTINCT e.canonical_key,e.canonical_name,e.entity_type ORDER BY e.canonical_name LIMIT $limit`, map[string]any{"snapshot_id": snapshotID, "limit": maxEntities}, 3)
+	if err != nil {
+		return result, err
+	}
+	seenEntities := make(map[string]struct{}, len(entityRows))
+	entityKeys := make([]string, 0, len(entityRows))
+	appendEntity := func(key, entityName, entityType string) {
+		identity := key
+		if identity == "" {
+			identity = entityName + "\x00" + entityType
+		}
+		if _, exists := seenEntities[identity]; exists {
+			return
+		}
+		seenEntities[identity] = struct{}{}
+		result.Entities = append(result.Entities, GraphRAGEntityEvidence{Key: key, Name: entityName, EntityType: entityType})
+	}
+	for _, values := range entityRows {
+		if len(values) == 3 {
+			appendEntity(values[0], values[1], values[2])
+			if values[0] != "" {
+				entityKeys = append(entityKeys, values[0])
+			}
+		}
+	}
+	if len(entityKeys) == 0 {
+		return result, nil
+	}
+	relationshipRows, err := queryAGECypher(ctx, conn, `MATCH (a:Entity)-[r:RELATED_TO]->(b:Entity) WHERE r.snapshot_id=$snapshot_id AND a.canonical_key IN $entity_keys AND b.canonical_key IN $entity_keys RETURN a.canonical_key,a.canonical_name,a.entity_type,b.canonical_key,b.canonical_name,b.entity_type,r.relation_type,r.description,r.confidence,r.document_name,r.chunk_index ORDER BY r.confidence DESC,r.chunk_index LIMIT $limit`, map[string]any{"snapshot_id": snapshotID, "entity_keys": entityKeys, "limit": maxRelationships}, 11)
+	if err != nil {
+		return result, err
+	}
+	for _, values := range relationshipRows {
+		if len(values) != 11 {
+			continue
+		}
+		confidence, _ := strconv.ParseFloat(values[8], 64)
+		chunkIndex, _ := strconv.Atoi(values[10])
+		result.Relationships = append(result.Relationships, GraphRAGRelationshipEvidence{From: values[1], FromType: values[2], To: values[4], ToType: values[5], RelationType: values[6], Description: values[7], Confidence: confidence, DocumentName: values[9], ChunkIndex: chunkIndex, Depth: 1})
+		appendEntity(values[0], values[1], values[2])
+		appendEntity(values[3], values[4], values[5])
+	}
+	return result, nil
+}
+
 type graphRAGQuerier interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
 }

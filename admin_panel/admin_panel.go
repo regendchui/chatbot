@@ -67,6 +67,7 @@ func registerAdminPanelRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/graph-rag/remove", adminRequireAuth(adminGraphRAGRemoveHandler))
 	mux.HandleFunc("/admin/graph-rag/delete-all", adminRequireAuth(adminGraphRAGDeleteAllHandler))
 	mux.HandleFunc("/admin/graph-rag/test", adminRequireAuth(adminGraphRAGTestHandler))
+	mux.HandleFunc("/admin/graph-rag/document-preview", adminRequireAuth(adminGraphRAGDocumentPreviewHandler))
 	mux.HandleFunc("/admin/intention-routing-rag", adminRequireAuth(adminIntentionRoutingRAGHandler))
 	mux.HandleFunc("/admin/intention-routing-rag/workflow", adminRequireAuth(adminIntentionRoutingRAGWorkflowHandler))
 	mux.HandleFunc("/admin/intention-routing-rag/draft", adminRequireAuth(adminIntentionRoutingRAGDraftHandler))

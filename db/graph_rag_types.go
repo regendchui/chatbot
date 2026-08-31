@@ -83,9 +83,16 @@ type GraphRAGRelationshipEvidence struct {
 	Depth        int     `json:"depth"`
 }
 
+type GraphRAGEntityEvidence struct {
+	Key        string `json:"key"`
+	Name       string `json:"name"`
+	EntityType string `json:"entity_type"`
+}
+
 type GraphRAGQueryResult struct {
 	SeedEntities         []string                       `json:"seed_entities"`
 	ResolvedSeedEntities []string                       `json:"resolved_seed_entities"`
+	Entities             []GraphRAGEntityEvidence       `json:"entities"`
 	Relationships        []GraphRAGRelationshipEvidence `json:"relationships"`
 	GraphRevision        string                         `json:"graph_revision"`
 }
