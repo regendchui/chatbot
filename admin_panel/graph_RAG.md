@@ -194,6 +194,8 @@ It provides:
   connectivity, confidence, and cross-document support while retaining entity
   type diversity; administrators can show 5–60 key concepts and 5–120
   relationships (defaults: 20 and 30);
+- collision-free category colors generated from the visible entity-type set,
+  with a dedicated legend band separated from the concept-map layout;
 - interactive SVG query and document previews with zoom in/out, fit-to-view,
   drag panning, multi-line bounded card labels, relationship tooltips, and an
   accessible evidence table; and
