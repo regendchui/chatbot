@@ -26,7 +26,14 @@ const graphRAGDeleteOrphanEntitiesCypher = `MATCH (e:Entity) OPTIONAL MATCH (e)<
 
 const graphRAGResolveEntityCypher = `UNWIND $keys AS key MATCH (e:Entity) WHERE e.canonical_key = key OR key IN e.alias_keys RETURN e.canonical_key,e.aliases,e.alias_keys ORDER BY e.canonical_key LIMIT 1`
 
-const graphRAGResolveSeedCypher = `UNWIND $keys AS key MATCH (e:Entity) WHERE e.canonical_key = key OR key IN e.alias_keys RETURN e.canonical_key LIMIT $limit`
+const graphRAGResolveSeedCypher = `UNWIND $terms AS term MATCH (e:Entity) WHERE e.canonical_key = term OR e.canonical_key CONTAINS term OR term CONTAINS e.canonical_key OR term IN e.alias_keys RETURN DISTINCT e.canonical_key,e.alias_keys ORDER BY e.canonical_key LIMIT $candidate_limit`
+
+const graphRAGMinimumSeedMatchScore = 0.35
+
+type graphRAGSeedCandidate struct {
+	CanonicalKey string
+	AliasKeys    []string
+}
 
 func EnsureGraphRAGInfrastructure() error {
 	metadata := `
@@ -643,17 +650,19 @@ func QueryGraphRAG(ctx context.Context, seeds []string, documentNames []string, 
 	if err := configureAGEConnection(ctx, conn); err != nil {
 		return result, err
 	}
-	resolvedRows, err := queryAGECypher(ctx, conn, graphRAGResolveSeedCypher, map[string]any{"keys": seedKeys, "limit": settings.MaxSeedEntities}, 1)
+	searchTerms := graphRAGSeedSearchTerms(seedKeys, graphRAGSeedSearchTermLimit(settings.MaxSeedEntities))
+	resolvedRows, err := queryAGECypher(ctx, conn, graphRAGResolveSeedCypher, map[string]any{"terms": searchTerms, "candidate_limit": graphRAGSeedCandidateLimit(settings.MaxSeedEntities)}, 2)
 	if err != nil {
 		return result, err
 	}
-	resolvedKeys := make([]string, 0, len(resolvedRows))
+	candidates := make([]graphRAGSeedCandidate, 0, len(resolvedRows))
 	for _, values := range resolvedRows {
-		if len(values) == 1 {
-			resolvedKeys = append(resolvedKeys, values[0])
+		if len(values) == 2 {
+			candidates = append(candidates, graphRAGSeedCandidate{CanonicalKey: values[0], AliasKeys: mergeGraphStringJSON(nil, values[1])})
 		}
 	}
-	frontier := uniqueGraphStrings(resolvedKeys, settings.MaxSeedEntities)
+	frontier := rankGraphRAGSeedCandidates(seedKeys, candidates, settings.MaxSeedEntities)
+	result.ResolvedSeedEntities = append([]string(nil), frontier...)
 	discovered := map[string]struct{}{}
 	for _, key := range frontier {
 		discovered[key] = struct{}{}
@@ -800,6 +809,176 @@ func normalizeGraphKeys(values []string) []string {
 		}
 		seen[key] = struct{}{}
 		result = append(result, key)
+	}
+	return result
+}
+
+func graphRAGSeedSearchTermLimit(maxSeedEntities int) int {
+	limit := maxSeedEntities * 16
+	if limit < 32 {
+		return 32
+	}
+	if limit > 128 {
+		return 128
+	}
+	return limit
+}
+
+func graphRAGSeedCandidateLimit(maxSeedEntities int) int {
+	limit := maxSeedEntities * 100
+	if limit < 200 {
+		return 200
+	}
+	if limit > 1000 {
+		return 1000
+	}
+	return limit
+}
+
+func graphRAGSeedSearchTerms(seeds []string, limit int) []string {
+	terms := make([]string, 0, len(seeds)*8)
+	for _, seed := range normalizeGraphKeys(seeds) {
+		terms = append(terms, seed)
+		runes := []rune(seed)
+		for index := 0; index+1 < len(runes); index++ {
+			pair := strings.TrimSpace(string(runes[index : index+2]))
+			if len([]rune(pair)) == 2 {
+				terms = append(terms, pair)
+			}
+		}
+		for _, word := range strings.Fields(seed) {
+			if len([]rune(word)) >= 2 {
+				terms = append(terms, word)
+			}
+		}
+	}
+	return uniqueGraphStrings(terms, limit)
+}
+
+func rankGraphRAGSeedCandidates(seeds []string, candidates []graphRAGSeedCandidate, limit int) []string {
+	if limit <= 0 {
+		return nil
+	}
+	normalizedSeeds := normalizeGraphKeys(seeds)
+	uniqueCandidates := make([]graphRAGSeedCandidate, 0, len(candidates))
+	seenCandidates := map[string]struct{}{}
+	for _, candidate := range candidates {
+		candidate.CanonicalKey = normalizeGraphKey(candidate.CanonicalKey)
+		candidate.AliasKeys = normalizeGraphKeys(candidate.AliasKeys)
+		if candidate.CanonicalKey == "" {
+			continue
+		}
+		if _, exists := seenCandidates[candidate.CanonicalKey]; exists {
+			continue
+		}
+		seenCandidates[candidate.CanonicalKey] = struct{}{}
+		uniqueCandidates = append(uniqueCandidates, candidate)
+	}
+
+	selected := map[string]struct{}{}
+	result := make([]string, 0, limit)
+	for _, seed := range normalizedSeeds {
+		bestKey := ""
+		bestScore := 0.0
+		for _, candidate := range uniqueCandidates {
+			if _, exists := selected[candidate.CanonicalKey]; exists {
+				continue
+			}
+			score := graphRAGSeedCandidateScore(seed, candidate)
+			if score > bestScore || (score == bestScore && score > 0 && candidate.CanonicalKey < bestKey) {
+				bestKey = candidate.CanonicalKey
+				bestScore = score
+			}
+		}
+		if bestScore >= graphRAGMinimumSeedMatchScore {
+			selected[bestKey] = struct{}{}
+			result = append(result, bestKey)
+			if len(result) == limit {
+				return result
+			}
+		}
+	}
+
+	type scoredCandidate struct {
+		key   string
+		score float64
+	}
+	remaining := make([]scoredCandidate, 0, len(uniqueCandidates))
+	for _, candidate := range uniqueCandidates {
+		if _, exists := selected[candidate.CanonicalKey]; exists {
+			continue
+		}
+		bestScore := 0.0
+		for _, seed := range normalizedSeeds {
+			if score := graphRAGSeedCandidateScore(seed, candidate); score > bestScore {
+				bestScore = score
+			}
+		}
+		if bestScore >= graphRAGMinimumSeedMatchScore {
+			remaining = append(remaining, scoredCandidate{key: candidate.CanonicalKey, score: bestScore})
+		}
+	}
+	sort.Slice(remaining, func(i, j int) bool {
+		if remaining[i].score == remaining[j].score {
+			return remaining[i].key < remaining[j].key
+		}
+		return remaining[i].score > remaining[j].score
+	})
+	for _, candidate := range remaining {
+		result = append(result, candidate.key)
+		if len(result) == limit {
+			break
+		}
+	}
+	return result
+}
+
+func graphRAGSeedCandidateScore(seed string, candidate graphRAGSeedCandidate) float64 {
+	best := graphRAGStringSimilarity(seed, candidate.CanonicalKey)
+	for _, alias := range candidate.AliasKeys {
+		if score := graphRAGStringSimilarity(seed, alias); score > best {
+			best = score
+		}
+	}
+	return best
+}
+
+func graphRAGStringSimilarity(left, right string) float64 {
+	left = normalizeGraphKey(left)
+	right = normalizeGraphKey(right)
+	if left == "" || right == "" {
+		return 0
+	}
+	if left == right {
+		return 1
+	}
+	leftRunes := []rune(left)
+	rightRunes := []rune(right)
+	if strings.Contains(left, right) || strings.Contains(right, left) {
+		shorter, longer := len(leftRunes), len(rightRunes)
+		if shorter > longer {
+			shorter, longer = longer, shorter
+		}
+		return 0.7 + 0.3*(float64(shorter)/float64(longer))
+	}
+	leftPairs := graphRAGRunePairs(leftRunes)
+	rightPairs := graphRAGRunePairs(rightRunes)
+	if len(leftPairs) == 0 || len(rightPairs) == 0 {
+		return 0
+	}
+	overlap := 0
+	for pair := range leftPairs {
+		if _, exists := rightPairs[pair]; exists {
+			overlap++
+		}
+	}
+	return float64(2*overlap) / float64(len(leftPairs)+len(rightPairs))
+}
+
+func graphRAGRunePairs(runes []rune) map[string]struct{} {
+	result := map[string]struct{}{}
+	for index := 0; index+1 < len(runes); index++ {
+		result[string(runes[index:index+2])] = struct{}{}
 	}
 	return result
 }

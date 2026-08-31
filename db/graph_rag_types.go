@@ -84,7 +84,8 @@ type GraphRAGRelationshipEvidence struct {
 }
 
 type GraphRAGQueryResult struct {
-	SeedEntities  []string                       `json:"seed_entities"`
-	Relationships []GraphRAGRelationshipEvidence `json:"relationships"`
-	GraphRevision string                         `json:"graph_revision"`
+	SeedEntities         []string                       `json:"seed_entities"`
+	ResolvedSeedEntities []string                       `json:"resolved_seed_entities"`
+	Relationships        []GraphRAGRelationshipEvidence `json:"relationships"`
+	GraphRevision        string                         `json:"graph_revision"`
 }

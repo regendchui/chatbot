@@ -22,14 +22,14 @@ func TestGraphRAGSnapshotCypherAvoidsUnsupportedAGE16Clauses(t *testing.T) {
 }
 
 func TestGraphRAGEntityResolutionKeepsAliasMatchingWithoutAnyPredicate(t *testing.T) {
-	for name, query := range map[string]string{
-		"ingestion identity": graphRAGResolveEntityCypher,
-		"retrieval seed":     graphRAGResolveSeedCypher,
-	} {
-		for _, want := range []string{"UNWIND $keys AS key", "e.canonical_key = key", "key IN e.alias_keys"} {
-			if !strings.Contains(query, want) {
-				t.Errorf("%s query must contain %q: %s", name, want, query)
-			}
+	for _, want := range []string{"UNWIND $keys AS key", "e.canonical_key = key", "key IN e.alias_keys"} {
+		if !strings.Contains(graphRAGResolveEntityCypher, want) {
+			t.Errorf("ingestion identity query must contain %q: %s", want, graphRAGResolveEntityCypher)
+		}
+	}
+	for _, want := range []string{"UNWIND $terms AS term", "e.canonical_key = term", "e.canonical_key CONTAINS term", "term IN e.alias_keys"} {
+		if !strings.Contains(graphRAGResolveSeedCypher, want) {
+			t.Errorf("retrieval seed query must contain %q: %s", want, graphRAGResolveSeedCypher)
 		}
 	}
 }

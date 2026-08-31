@@ -344,7 +344,7 @@ func RetrieveGraphRAGWithDebug(ctx context.Context, query string, memory []commo
 		output.Context += "\nWhen answering, cite source document names in square brackets. Never expose chunk IDs."
 	}
 	queryHash := sha256.Sum256([]byte(enquiry))
-	output.Debug = fmt.Sprintf("graph_rag_enabled=true query_hash=%s seed_count=%d relationship_count=%d context_chars=%d revision=%s", hex.EncodeToString(queryHash[:8]), len(seeds), len(result.Relationships), len([]rune(output.Context)), result.GraphRevision)
+	output.Debug = fmt.Sprintf("graph_rag_enabled=true query_hash=%s seed_count=%d resolved_seed_count=%d relationship_count=%d context_chars=%d revision=%s", hex.EncodeToString(queryHash[:8]), len(seeds), len(result.ResolvedSeedEntities), len(result.Relationships), len([]rune(output.Context)), result.GraphRevision)
 	return output, nil
 }
 

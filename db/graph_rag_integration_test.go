@@ -76,6 +76,13 @@ func TestGraphRAGAGEIntegration(t *testing.T) {
 	if result.Relationships[0].From != "Wong Tai Sin Clinic" || result.Relationships[0].To != "Wong Tai Sin" {
 		t.Fatalf("relationship direction was reversed: %#v", result.Relationships[0])
 	}
+	fuzzyResult, err := QueryGraphRAG(ctx, []string{"Wong Tai Sin smoking clinic"}, []string{documentName}, settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fuzzyResult.Relationships) != 1 || len(fuzzyResult.ResolvedSeedEntities) == 0 {
+		t.Fatalf("partial seed did not resolve to graph evidence: %#v", fuzzyResult)
+	}
 
 	if _, err := DB.Exec(ctx, `UPDATE graph_rag_jobs SET status='running',updated_at=CURRENT_TIMESTAMP-INTERVAL '10 minutes' WHERE id=$1`, job.ID); err != nil {
 		t.Fatal(err)

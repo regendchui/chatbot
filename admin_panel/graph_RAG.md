@@ -34,6 +34,11 @@ which is supported by the PG15/AGE 1.6 deployment. Orphan cleanup similarly
 uses `OPTIONAL MATCH ... IS NULL` instead of unsupported negated patterns.
 Entity alias resolution uses `UNWIND` and the `IN` operator because AGE 1.6
 does not parse Neo4j-style `any(... WHERE ...)` list predicates.
+Retrieval expands generic query seeds into a bounded set of Unicode search
+terms, fetches partial AGE candidates, and ranks canonical names and aliases
+with deterministic bigram similarity. This lets a seed such as `黃大仙` match a
+longer facility name while bounding both search terms and candidate results.
+Debug output separately reports extracted and resolved seed counts.
 
 ## Graph model
 
