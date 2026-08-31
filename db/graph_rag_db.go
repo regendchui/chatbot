@@ -13,6 +13,7 @@ import (
 	"whatsapp-bot/common"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const graphRAGGraphName = "knowledge_graph"
@@ -93,8 +94,8 @@ ALTER TABLE graph_rag_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT N
 		return fmt.Errorf("acquire AGE setup connection: %w", err)
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(context.Background(), `LOAD 'age'`); err != nil {
-		return fmt.Errorf("load Apache AGE: %w", err)
+	if err := configureAGEConnection(context.Background(), conn); err != nil {
+		return err
 	}
 	var exists bool
 	if err := conn.QueryRow(context.Background(), `SELECT EXISTS (SELECT 1 FROM ag_catalog.ag_graph WHERE name = $1)`, graphRAGGraphName).Scan(&exists); err != nil {
@@ -395,8 +396,8 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `LOAD 'age'`); err != nil {
-		return fmt.Errorf("load AGE for snapshot: %w", err)
+	if err := configureAGEConnection(ctx, tx); err != nil {
+		return fmt.Errorf("configure AGE for snapshot: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO graph_rag_snapshots(id,document_id,content_hash,status) VALUES($1,$2,$3,'building')`, snapshotID, job.DocumentID, contentHash); err != nil {
 		return err
@@ -528,7 +529,7 @@ func DeleteGraphRAGSnapshot(ctx context.Context, snapshotID string) error {
 		return err
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(ctx, `LOAD 'age'`); err != nil {
+	if err := configureAGEConnection(ctx, conn); err != nil {
 		return err
 	}
 	params := map[string]any{"snapshot_id": snapshotID}
@@ -629,7 +630,7 @@ func QueryGraphRAG(ctx context.Context, seeds []string, documentNames []string, 
 		return result, err
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(ctx, `LOAD 'age'`); err != nil {
+	if err := configureAGEConnection(ctx, conn); err != nil {
 		return result, err
 	}
 	resolvedRows, err := queryAGECypher(ctx, conn, `MATCH (e:Entity) WHERE e.canonical_key IN $keys OR any(alias IN e.alias_keys WHERE alias IN $keys) RETURN e.canonical_key LIMIT $limit`, map[string]any{"keys": seedKeys, "limit": settings.MaxSeedEntities}, 1)
@@ -686,6 +687,20 @@ func QueryGraphRAG(ctx context.Context, seeds []string, documentNames []string, 
 
 type graphRAGQuerier interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+type graphRAGExecutor interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func configureAGEConnection(ctx context.Context, runner graphRAGExecutor) error {
+	if _, err := runner.Exec(ctx, `LOAD 'age'`); err != nil {
+		return fmt.Errorf("load Apache AGE: %w", err)
+	}
+	if _, err := runner.Exec(ctx, `SET search_path = ag_catalog, "$user", public`); err != nil {
+		return fmt.Errorf("set Apache AGE search path: %w", err)
+	}
+	return nil
 }
 
 type execAGEQuerier interface {

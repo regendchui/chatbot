@@ -22,9 +22,11 @@ the AGE extension, metadata tables, and the fixed `knowledge_graph` namespace
 idempotently. When AGE is missing or unavailable, the application logs the
 condition and continues serving non-graph functionality.
 
-Every AGE connection executes `LOAD 'age'`. Cypher is chosen from fixed,
-bounded application templates; model-generated or user-supplied raw Cypher is
-never executed.
+Every AGE connection executes `LOAD 'age'` and
+`SET search_path = ag_catalog, "$user", public`. The search path lets PostgreSQL
+resolve AGE operators used internally by Cypher predicates. Cypher is chosen
+from fixed, bounded application templates; model-generated or user-supplied raw
+Cypher is never executed.
 
 ## Graph model
 
