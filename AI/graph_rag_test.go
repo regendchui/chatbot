@@ -55,4 +55,14 @@ func TestComposeHybridRAGContextUsesSharedBudgetAndSeparateSections(t *testing.T
 	if !trace.Truncated {
 		t.Fatal("expected truncation trace")
 	}
+	if !strings.Contains(strings.ToLower(got), "untrusted reference evidence") {
+		t.Fatalf("hybrid context is missing the trust boundary: %q", got)
+	}
+}
+
+func TestRoutingRAGNoMatchTreatsGraphOnlyEvidenceAsMatch(t *testing.T) {
+	result := RoutingRAGResult{GraphPromptParts: []GraphRAGPromptPart{{Context: "graph evidence"}}}
+	if routingRAGNoMatch(result) {
+		t.Fatal("graph-only evidence must count as a routing match")
+	}
 }

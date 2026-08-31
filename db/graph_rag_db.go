@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS graph_rag_documents (
     selected BOOLEAN NOT NULL DEFAULT FALSE,
     content_hash TEXT NOT NULL DEFAULT '',
     active_snapshot_id TEXT NOT NULL DEFAULT '',
+    required_settings_hash TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'not_built',
     stale BOOLEAN NOT NULL DEFAULT TRUE,
     last_error TEXT NOT NULL DEFAULT '',
@@ -48,7 +49,8 @@ CREATE TABLE IF NOT EXISTS graph_rag_jobs (
     last_error TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMPTZ,
-    finished_at TIMESTAMPTZ
+    finished_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS graph_rag_jobs_status_created_idx ON graph_rag_jobs(status, created_at);
 CREATE TABLE IF NOT EXISTS graph_rag_snapshots (
@@ -77,7 +79,9 @@ CREATE TABLE IF NOT EXISTS graph_rag_extraction_audit (
     prompt_tokens BIGINT NOT NULL DEFAULT 0,
     completion_tokens BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);`
+);
+ALTER TABLE graph_rag_documents ADD COLUMN IF NOT EXISTS required_settings_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE graph_rag_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;`
 	if _, err := DB.Exec(context.Background(), metadata); err != nil {
 		return fmt.Errorf("create Graph RAG metadata tables: %w", err)
 	}
@@ -149,7 +153,7 @@ func SelectGraphRAGDocument(ctx context.Context, documentName, settingsHash stri
 	if err != nil {
 		return err
 	}
-	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET selected=TRUE, stale=TRUE, status=CASE WHEN active_snapshot_id='' THEN 'queued' ELSE status END, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, documentID); err != nil {
+	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET selected=TRUE,stale=TRUE,required_settings_hash=$2,status=CASE WHEN active_snapshot_id='' THEN 'queued' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, documentID, settingsHash); err != nil {
 		return fmt.Errorf("select Graph RAG document: %w", err)
 	}
 	return queueGraphRAGJob(ctx, documentID, "rebuild", settingsHash)
@@ -160,7 +164,7 @@ func QueueGraphRAGRebuild(ctx context.Context, documentName, settingsHash string
 	if err != nil {
 		return err
 	}
-	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET selected=TRUE, stale=TRUE, status='queued', updated_at=CURRENT_TIMESTAMP WHERE id=$1`, documentID); err != nil {
+	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET selected=TRUE,stale=TRUE,required_settings_hash=$2,status='queued',updated_at=CURRENT_TIMESTAMP WHERE id=$1`, documentID, settingsHash); err != nil {
 		return fmt.Errorf("mark Graph RAG document queued: %w", err)
 	}
 	return queueGraphRAGJob(ctx, documentID, "rebuild", settingsHash)
@@ -176,7 +180,7 @@ func MarkGraphRAGDocumentStaleAndQueueIfSelected(ctx context.Context, documentNa
 	if err != nil {
 		return fmt.Errorf("load Graph RAG document selection: %w", err)
 	}
-	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET stale=TRUE, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, documentID); err != nil {
+	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET stale=TRUE,required_settings_hash=$2,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, documentID, settingsHash); err != nil {
 		return fmt.Errorf("mark Graph RAG document stale: %w", err)
 	}
 	if selected {
@@ -185,8 +189,8 @@ func MarkGraphRAGDocumentStaleAndQueueIfSelected(ctx context.Context, documentNa
 	return nil
 }
 
-func MarkAllGraphRAGDocumentsStale(ctx context.Context) error {
-	_, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET stale=TRUE, updated_at=CURRENT_TIMESTAMP WHERE selected=TRUE`)
+func MarkAllGraphRAGDocumentsStale(ctx context.Context, settingsHash string) error {
+	_, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET stale=TRUE,required_settings_hash=$1,updated_at=CURRENT_TIMESTAMP WHERE selected=TRUE`, settingsHash)
 	if err != nil {
 		return fmt.Errorf("mark Graph RAG documents stale: %w", err)
 	}
@@ -194,6 +198,9 @@ func MarkAllGraphRAGDocumentsStale(ctx context.Context) error {
 }
 
 func QueueAllStaleGraphRAGDocuments(ctx context.Context, settingsHash string) (int64, error) {
+	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET required_settings_hash=$1,updated_at=CURRENT_TIMESTAMP WHERE selected=TRUE AND stale=TRUE`, settingsHash); err != nil {
+		return 0, fmt.Errorf("snapshot Graph RAG settings for stale documents: %w", err)
+	}
 	rows, err := DB.Query(ctx, `SELECT id FROM graph_rag_documents WHERE selected=TRUE AND stale=TRUE ORDER BY document_name`)
 	if err != nil {
 		return 0, fmt.Errorf("list stale Graph RAG documents: %w", err)
@@ -235,29 +242,46 @@ func ensureGraphRAGDocument(ctx context.Context, documentName string) (string, e
 }
 
 func queueGraphRAGJob(ctx context.Context, documentID, kind, settingsHash string) error {
+	tx, err := DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, documentID); err != nil {
+		return fmt.Errorf("lock Graph RAG job queue: %w", err)
+	}
 	var exists bool
-	if err := DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM graph_rag_jobs WHERE document_id=$1 AND status IN ('queued','running'))`, documentID).Scan(&exists); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM graph_rag_jobs WHERE document_id=$1 AND status='queued')`, documentID).Scan(&exists); err != nil {
 		return fmt.Errorf("check active Graph RAG job: %w", err)
 	}
 	if exists {
-		return nil
+		if _, err := tx.Exec(ctx, `UPDATE graph_rag_jobs SET settings_hash=$2,updated_at=CURRENT_TIMESTAMP WHERE document_id=$1 AND status='queued'`, documentID, settingsHash); err != nil {
+			return fmt.Errorf("refresh queued Graph RAG job: %w", err)
+		}
+		return tx.Commit(ctx)
 	}
-	_, err := DB.Exec(ctx, `INSERT INTO graph_rag_jobs(document_id,kind,status,settings_hash) VALUES($1,$2,'queued',$3)`, documentID, kind, settingsHash)
+	_, err = tx.Exec(ctx, `INSERT INTO graph_rag_jobs(document_id,kind,status,settings_hash,updated_at) VALUES($1,$2,'queued',$3,CURRENT_TIMESTAMP)`, documentID, kind, settingsHash)
 	if err != nil {
 		return fmt.Errorf("queue Graph RAG job: %w", err)
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func ClaimNextGraphRAGJob(ctx context.Context) (*GraphRAGJob, error) {
+	if _, err := DB.Exec(ctx, `WITH recovered AS (
+UPDATE graph_rag_jobs SET status='queued',started_at=NULL,last_error='Recovered after interrupted worker',updated_at=CURRENT_TIMESTAMP
+WHERE status='running' AND updated_at < CURRENT_TIMESTAMP-INTERVAL '5 minutes' RETURNING document_id
+) UPDATE graph_rag_documents d SET status='queued',stale=TRUE,updated_at=CURRENT_TIMESTAMP FROM recovered r WHERE d.id=r.document_id`); err != nil {
+		return nil, fmt.Errorf("recover abandoned Graph RAG jobs: %w", err)
+	}
 	tx, err := DB.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
 	var job GraphRAGJob
-	err = tx.QueryRow(ctx, `SELECT j.id,j.document_id,d.document_name,j.kind,j.status,j.processed_chunks,j.total_chunks,j.entity_count,j.relationship_count,j.prompt_tokens,j.completion_tokens,j.last_error,j.created_at,j.started_at,j.finished_at FROM graph_rag_jobs j JOIN graph_rag_documents d ON d.id=j.document_id WHERE j.status='queued' AND d.selected=TRUE ORDER BY j.created_at FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(
-		&job.ID, &job.DocumentID, &job.DocumentName, &job.Kind, &job.Status, &job.ProcessedChunks, &job.TotalChunks, &job.EntityCount, &job.RelationshipCount, &job.PromptTokens, &job.CompletionTokens, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt,
+	err = tx.QueryRow(ctx, `SELECT j.id,j.document_id,d.document_name,j.kind,j.status,j.settings_hash,j.processed_chunks,j.total_chunks,j.entity_count,j.relationship_count,j.prompt_tokens,j.completion_tokens,j.last_error,j.created_at,j.started_at,j.finished_at,j.updated_at FROM graph_rag_jobs j JOIN graph_rag_documents d ON d.id=j.document_id WHERE j.status='queued' AND d.selected=TRUE ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1`).Scan(
+		&job.ID, &job.DocumentID, &job.DocumentName, &job.Kind, &job.Status, &job.SettingsHash, &job.ProcessedChunks, &job.TotalChunks, &job.EntityCount, &job.RelationshipCount, &job.PromptTokens, &job.CompletionTokens, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt, &job.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -265,7 +289,7 @@ func ClaimNextGraphRAGJob(ctx context.Context) (*GraphRAGJob, error) {
 	if err != nil {
 		return nil, fmt.Errorf("claim Graph RAG job: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `UPDATE graph_rag_jobs SET status='running',started_at=CURRENT_TIMESTAMP,last_error='' WHERE id=$1`, job.ID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE graph_rag_jobs SET status='running',started_at=CURRENT_TIMESTAMP,last_error='',updated_at=CURRENT_TIMESTAMP WHERE id=$1`, job.ID); err != nil {
 		return nil, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE graph_rag_documents SET status='building',last_error='',updated_at=CURRENT_TIMESTAMP WHERE id=$1`, job.DocumentID); err != nil {
@@ -279,7 +303,7 @@ func ClaimNextGraphRAGJob(ctx context.Context) (*GraphRAGJob, error) {
 }
 
 func UpdateGraphRAGJobProgress(ctx context.Context, jobID int64, processed, total, entities, relationships int, promptTokens, completionTokens int64) error {
-	_, err := DB.Exec(ctx, `UPDATE graph_rag_jobs SET processed_chunks=$2,total_chunks=$3,entity_count=$4,relationship_count=$5,prompt_tokens=$6,completion_tokens=$7 WHERE id=$1`, jobID, processed, total, entities, relationships, promptTokens, completionTokens)
+	_, err := DB.Exec(ctx, `UPDATE graph_rag_jobs SET processed_chunks=$2,total_chunks=$3,entity_count=$4,relationship_count=$5,prompt_tokens=$6,completion_tokens=$7,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, jobID, processed, total, entities, relationships, promptTokens, completionTokens)
 	return err
 }
 
@@ -291,6 +315,26 @@ func RecordGraphRAGExtractionAudit(ctx context.Context, jobID int64, chunkIndex 
 	return nil
 }
 
+func ListGraphRAGExtractionAudits(ctx context.Context, limit int) ([]GraphRAGExtractionAudit, error) {
+	if limit < 1 || limit > 500 {
+		limit = 100
+	}
+	rows, err := DB.Query(ctx, `SELECT id,job_id,chunk_index,raw_response,validation_error,prompt_tokens,completion_tokens,created_at FROM graph_rag_extraction_audit ORDER BY created_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	audits := make([]GraphRAGExtractionAudit, 0)
+	for rows.Next() {
+		var audit GraphRAGExtractionAudit
+		if err := rows.Scan(&audit.ID, &audit.JobID, &audit.ChunkIndex, &audit.RawResponse, &audit.ValidationError, &audit.PromptTokens, &audit.CompletionTokens, &audit.CreatedAt); err != nil {
+			return nil, err
+		}
+		audits = append(audits, audit)
+	}
+	return audits, rows.Err()
+}
+
 func FailGraphRAGJob(ctx context.Context, job GraphRAGJob, cause error) error {
 	message := cleanGraphDBText(cause.Error(), 4000)
 	tx, err := DB.Begin(ctx)
@@ -298,7 +342,7 @@ func FailGraphRAGJob(ctx context.Context, job GraphRAGJob, cause error) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `UPDATE graph_rag_jobs SET status='failed',last_error=$2,finished_at=CURRENT_TIMESTAMP WHERE id=$1`, job.ID, message); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE graph_rag_jobs SET status='failed',last_error=$2,finished_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, job.ID, message); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE graph_rag_documents SET status=CASE WHEN active_snapshot_id='' THEN 'failed' ELSE 'ready' END,stale=TRUE,last_error=$2,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, job.DocumentID, message); err != nil {
@@ -311,7 +355,7 @@ func ListGraphRAGJobs(ctx context.Context, limit int) ([]GraphRAGJob, error) {
 	if limit < 1 || limit > 500 {
 		limit = 100
 	}
-	rows, err := DB.Query(ctx, `SELECT j.id,j.document_id,d.document_name,j.kind,j.status,j.processed_chunks,j.total_chunks,j.entity_count,j.relationship_count,j.prompt_tokens,j.completion_tokens,j.last_error,j.created_at,j.started_at,j.finished_at FROM graph_rag_jobs j JOIN graph_rag_documents d ON d.id=j.document_id ORDER BY j.created_at DESC LIMIT $1`, limit)
+	rows, err := DB.Query(ctx, `SELECT j.id,j.document_id,d.document_name,j.kind,j.status,j.settings_hash,j.processed_chunks,j.total_chunks,j.entity_count,j.relationship_count,j.prompt_tokens,j.completion_tokens,j.last_error,j.created_at,j.started_at,j.finished_at,j.updated_at FROM graph_rag_jobs j JOIN graph_rag_documents d ON d.id=j.document_id ORDER BY j.created_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +363,7 @@ func ListGraphRAGJobs(ctx context.Context, limit int) ([]GraphRAGJob, error) {
 	jobs := make([]GraphRAGJob, 0)
 	for rows.Next() {
 		var job GraphRAGJob
-		if err := rows.Scan(&job.ID, &job.DocumentID, &job.DocumentName, &job.Kind, &job.Status, &job.ProcessedChunks, &job.TotalChunks, &job.EntityCount, &job.RelationshipCount, &job.PromptTokens, &job.CompletionTokens, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt); err != nil {
+		if err := rows.Scan(&job.ID, &job.DocumentID, &job.DocumentName, &job.Kind, &job.Status, &job.SettingsHash, &job.ProcessedChunks, &job.TotalChunks, &job.EntityCount, &job.RelationshipCount, &job.PromptTokens, &job.CompletionTokens, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt, &job.UpdatedAt); err != nil {
 			return nil, err
 		}
 		jobs = append(jobs, job)
@@ -355,7 +399,10 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 		}
 		entityKeyByName := map[string]string{}
 		for _, entity := range chunk.Entities {
-			key := canonicalGraphKey(entity.CanonicalName, entity.Aliases)
+			key, aliases, aliasKeys, resolveErr := resolveGraphEntityIdentity(ctx, tx, entity)
+			if resolveErr != nil {
+				return resolveErr
+			}
 			if key == "" {
 				continue
 			}
@@ -368,10 +415,10 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 			params["canonical_key"] = key
 			params["canonical_name"] = cleanGraphDBText(entity.CanonicalName, 500)
 			params["entity_type"] = cleanGraphDBText(entity.EntityType, 120)
-			params["aliases"] = cleanGraphStringSlice(entity.Aliases, 500)
-			params["alias_keys"] = normalizeGraphKeys(entity.Aliases)
+			params["aliases"] = aliases
+			params["alias_keys"] = aliasKeys
 			params["confidence"] = entity.Confidence
-			if err := execAGECypher(ctx, tx, `MATCH (c:Chunk {snapshot_id: $snapshot_id, chunk_index: $chunk_index}) MERGE (e:Entity {canonical_key: $canonical_key}) ON CREATE SET e.canonical_name=$canonical_name, e.entity_type=$entity_type, e.aliases=$aliases, e.alias_keys=$alias_keys SET e.confidence=CASE WHEN coalesce(e.confidence,0) < $confidence THEN $confidence ELSE e.confidence END MERGE (c)-[:MENTIONS {snapshot_id: $snapshot_id, document_name: $document_name, chunk_index: $chunk_index}]->(e) RETURN e.canonical_name`, params); err != nil {
+			if err := execAGECypher(ctx, tx, `MATCH (c:Chunk {snapshot_id: $snapshot_id, chunk_index: $chunk_index}) MERGE (e:Entity {canonical_key: $canonical_key}) ON CREATE SET e.canonical_name=$canonical_name, e.entity_type=$entity_type SET e.aliases=$aliases, e.alias_keys=$alias_keys, e.confidence=CASE WHEN coalesce(e.confidence,0) < $confidence THEN $confidence ELSE e.confidence END MERGE (c)-[:MENTIONS {snapshot_id: $snapshot_id, document_name: $document_name, chunk_index: $chunk_index}]->(e) RETURN e.canonical_name`, params); err != nil {
 				return err
 			}
 		}
@@ -398,15 +445,19 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 			params["relation_type"] = cleanGraphDBText(relationship.RelationType, 120)
 			params["description"] = cleanGraphDBText(relationship.Description, 2000)
 			params["confidence"] = relationship.Confidence
-			if err := execAGECypher(ctx, tx, `MERGE (a:Entity {canonical_key: $from_key}) ON CREATE SET a.canonical_name=$from_name, a.entity_type='Unknown', a.aliases=[], a.alias_keys=[] MERGE (b:Entity {canonical_key: $to_key}) ON CREATE SET b.canonical_name=$to_name, b.entity_type='Unknown', b.aliases=[], b.alias_keys=[] CREATE (a)-[:RELATED_TO {relation_key:$relation_key, relation_type:$relation_type, description:$description, confidence:$confidence, snapshot_id:$snapshot_id, document_name:$document_name, chunk_index:$chunk_index}]->(b) RETURN a.canonical_name`, params); err != nil {
+			if err := execAGECypher(ctx, tx, `MERGE (a:Entity {canonical_key: $from_key}) ON CREATE SET a.canonical_name=$from_name, a.entity_type='Unknown', a.aliases=[], a.alias_keys=[] MERGE (b:Entity {canonical_key: $to_key}) ON CREATE SET b.canonical_name=$to_name, b.entity_type='Unknown', b.aliases=[], b.alias_keys=[] CREATE (a)-[:RELATED_TO {relation_key:$relation_key, from_key:$from_key, to_key:$to_key, relation_type:$relation_type, description:$description, confidence:$confidence, snapshot_id:$snapshot_id, document_name:$document_name, chunk_index:$chunk_index}]->(b) RETURN a.canonical_name`, params); err != nil {
 				return err
 			}
 			relationshipCount++
 		}
 	}
 	oldSnapshot := ""
-	if err := tx.QueryRow(ctx, `SELECT active_snapshot_id FROM graph_rag_documents WHERE id=$1 FOR UPDATE`, job.DocumentID).Scan(&oldSnapshot); err != nil {
+	requiredSettingsHash := ""
+	if err := tx.QueryRow(ctx, `SELECT active_snapshot_id,required_settings_hash FROM graph_rag_documents WHERE id=$1 FOR UPDATE`, job.DocumentID).Scan(&oldSnapshot, &requiredSettingsHash); err != nil {
 		return err
+	}
+	if requiredSettingsHash != "" && requiredSettingsHash != job.SettingsHash {
+		return fmt.Errorf("Graph RAG extraction settings changed during build; rebuild required")
 	}
 	if _, err := tx.Exec(ctx, `UPDATE graph_rag_snapshots SET status='active',entity_count=$2,relationship_count=$3,activated_at=CURRENT_TIMESTAMP WHERE id=$1`, snapshotID, len(entityKeys), relationshipCount); err != nil {
 		return err
@@ -414,7 +465,7 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 	if _, err := tx.Exec(ctx, `UPDATE graph_rag_documents SET content_hash=$2,active_snapshot_id=$3,status='ready',stale=FALSE,last_error='',entity_count=$4,relationship_count=$5,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, job.DocumentID, contentHash, snapshotID, len(entityKeys), relationshipCount); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE graph_rag_jobs SET status='completed',entity_count=$2,relationship_count=$3,finished_at=CURRENT_TIMESTAMP WHERE id=$1`, job.ID, len(entityKeys), relationshipCount); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE graph_rag_jobs SET status='completed',entity_count=$2,relationship_count=$3,finished_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=$1`, job.ID, len(entityKeys), relationshipCount); err != nil {
 		return err
 	}
 	if oldSnapshot != "" && oldSnapshot != snapshotID {
@@ -429,6 +480,32 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 		_ = DeleteGraphRAGSnapshot(context.Background(), oldSnapshot)
 	}
 	return nil
+}
+
+func resolveGraphEntityIdentity(ctx context.Context, runner graphRAGQuerier, entity GraphRAGExtractedEntity) (string, []string, []string, error) {
+	aliases := cleanGraphStringSlice(entity.Aliases, 500)
+	allNames := append([]string{cleanGraphDBText(entity.CanonicalName, 500)}, aliases...)
+	aliasKeys := normalizeGraphKeys(allNames)
+	if len(aliasKeys) == 0 {
+		return "", nil, nil, nil
+	}
+	rows, err := queryAGECypher(ctx, runner, `MATCH (e:Entity) WHERE e.canonical_key IN $keys OR any(alias IN e.alias_keys WHERE alias IN $keys) RETURN e.canonical_key,e.aliases,e.alias_keys ORDER BY e.canonical_key LIMIT 1`, map[string]any{"keys": aliasKeys}, 3)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	key := canonicalGraphKey(entity.CanonicalName, entity.Aliases)
+	if len(rows) > 0 {
+		key = rows[0][0]
+		aliases = mergeGraphStringJSON(aliases, rows[0][1])
+		aliasKeys = mergeGraphStringJSON(aliasKeys, rows[0][2])
+	}
+	return key, aliases, aliasKeys, nil
+}
+
+func mergeGraphStringJSON(values []string, raw string) []string {
+	var existing []string
+	_ = json.Unmarshal([]byte(raw), &existing)
+	return uniqueGraphStrings(append(values, existing...), len(values)+len(existing))
 }
 
 func DeleteGraphRAGSnapshot(ctx context.Context, snapshotID string) error {
@@ -555,35 +632,43 @@ func QueryGraphRAG(ctx context.Context, seeds []string, documentNames []string, 
 		}
 	}
 	frontier := uniqueGraphStrings(resolvedKeys, settings.MaxSeedEntities)
-	visited := map[string]struct{}{}
+	discovered := map[string]struct{}{}
+	for _, key := range frontier {
+		discovered[key] = struct{}{}
+	}
 	dedup := map[string]struct{}{}
 	for depth := 1; depth <= settings.MaxTraversalDepth && len(frontier) > 0 && len(result.Relationships) < settings.MaxRelationships; depth++ {
 		params := map[string]any{"keys": frontier, "snapshots": snapshots, "min_confidence": settings.MinMatchConfidence, "limit": settings.MaxRelationships - len(result.Relationships)}
-		queryRows, err := queryAGECypher(ctx, conn, `MATCH (a:Entity)-[r:RELATED_TO]-(b:Entity) WHERE a.canonical_key IN $keys AND r.snapshot_id IN $snapshots AND r.confidence >= $min_confidence RETURN a.canonical_key,a.canonical_name,a.entity_type,b.canonical_key,b.canonical_name,b.entity_type,r.relation_type,r.description,r.confidence,r.document_name,r.chunk_index LIMIT $limit`, params, 11)
+		queryRows, err := queryAGECypher(ctx, conn, `MATCH (a:Entity)-[r:RELATED_TO]-(b:Entity) WHERE a.canonical_key IN $keys AND r.snapshot_id IN $snapshots AND r.confidence >= $min_confidence RETURN a.canonical_key,a.canonical_name,a.entity_type,b.canonical_key,b.canonical_name,b.entity_type,r.relation_type,r.description,r.confidence,r.document_name,r.chunk_index,r.relation_key,r.from_key,r.to_key ORDER BY r.confidence DESC,r.document_name,r.chunk_index LIMIT $limit`, params, 14)
 		if err != nil {
 			return result, err
 		}
 		next := make([]string, 0)
 		for _, values := range queryRows {
-			if len(values) != 11 {
+			if len(values) != 14 {
 				continue
 			}
 			confidence, _ := strconv.ParseFloat(values[8], 64)
 			chunkIndex, _ := strconv.Atoi(values[10])
-			key := strings.Join([]string{values[0], values[3], values[6], values[9], values[10]}, "|")
+			key := values[11]
+			if key == "" {
+				key = strings.Join([]string{values[12], values[13], values[6], values[9], values[10]}, "|")
+			}
 			if _, exists := dedup[key]; exists {
 				continue
 			}
 			dedup[key] = struct{}{}
-			result.Relationships = append(result.Relationships, GraphRAGRelationshipEvidence{From: values[1], FromType: values[2], To: values[4], ToType: values[5], RelationType: values[6], Description: values[7], Confidence: confidence, DocumentName: values[9], ChunkIndex: chunkIndex, Depth: depth})
-			if _, seen := visited[values[3]]; !seen {
+			from, fromType, to, toType := values[1], values[2], values[4], values[5]
+			if values[12] == values[3] {
+				from, fromType, to, toType = values[4], values[5], values[1], values[2]
+			}
+			result.Relationships = append(result.Relationships, GraphRAGRelationshipEvidence{From: from, FromType: fromType, To: to, ToType: toType, RelationType: values[6], Description: values[7], Confidence: confidence, DocumentName: values[9], ChunkIndex: chunkIndex, Depth: depth})
+			if _, seen := discovered[values[3]]; !seen && len(discovered) < settings.MaxEntities {
 				next = append(next, values[3])
+				discovered[values[3]] = struct{}{}
 			}
 		}
-		for _, key := range frontier {
-			visited[key] = struct{}{}
-		}
-		frontier = uniqueGraphStrings(next, settings.MaxEntities)
+		frontier = uniqueGraphStrings(next, len(next))
 	}
 	return result, nil
 }
@@ -645,6 +730,10 @@ func decodeAGScalar(value string) string {
 	trimmed := strings.TrimSpace(value)
 	var decoded any
 	if json.Unmarshal([]byte(trimmed), &decoded) == nil {
+		if _, ok := decoded.([]any); ok {
+			encoded, _ := json.Marshal(decoded)
+			return string(encoded)
+		}
 		return fmt.Sprint(decoded)
 	}
 	return strings.Trim(trimmed, `"`)

@@ -23,6 +23,7 @@ type GraphRAGJob struct {
 	DocumentName      string
 	Kind              string
 	Status            string
+	SettingsHash      string
 	ProcessedChunks   int
 	TotalChunks       int
 	EntityCount       int
@@ -33,6 +34,18 @@ type GraphRAGJob struct {
 	CreatedAt         time.Time
 	StartedAt         *time.Time
 	FinishedAt        *time.Time
+	UpdatedAt         time.Time
+}
+
+type GraphRAGExtractionAudit struct {
+	ID               int64
+	JobID            int64
+	ChunkIndex       int
+	RawResponse      string
+	ValidationError  string
+	PromptTokens     int64
+	CompletionTokens int64
+	CreatedAt        time.Time
 }
 
 type GraphRAGExtractedEntity struct {

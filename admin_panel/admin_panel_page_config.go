@@ -482,7 +482,7 @@ func adminConfigurationUpdateRAGHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if oldExtractionHash != ai.GraphRAGExtractionSettingsHash() {
-		_ = db.MarkAllGraphRAGDocumentsStale(r.Context())
+		_ = db.MarkAllGraphRAGDocumentsStale(r.Context(), ai.GraphRAGExtractionSettingsHash())
 	}
 	adminRecordConfigUpdateHistory(r, "update_rag_settings", "Updated RAG settings in configuration page")
 	adminConfigRedirect(w, r, "RAG settings updated.")

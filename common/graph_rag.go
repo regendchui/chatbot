@@ -70,6 +70,8 @@ func ValidateGraphRAGRetrievalSettings(settings GraphRAGRetrievalSettings) []Gra
 	}
 	if settings.MaxEntities < 1 || settings.MaxEntities > 200 {
 		add("max_entities", "must be between 1 and 200")
+	} else if settings.MaxEntities < settings.MaxSeedEntities {
+		add("max_entities", "must be greater than or equal to max_seed_entities")
 	}
 	if settings.MaxRelationships < 1 || settings.MaxRelationships > 500 {
 		add("max_relationships", "must be between 1 and 500")

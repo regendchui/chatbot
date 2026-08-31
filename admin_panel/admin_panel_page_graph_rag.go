@@ -2,6 +2,7 @@ package admin_panel
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
@@ -27,6 +28,7 @@ func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	graphDocuments, graphErr := db.ListGraphRAGDocuments(r.Context())
 	jobs, jobsErr := db.ListGraphRAGJobs(r.Context(), 100)
+	audits, auditsErr := db.ListGraphRAGExtractionAudits(r.Context(), 100)
 	selected := map[string]db.GraphRAGDocument{}
 	for _, document := range graphDocuments {
 		selected[document.DocumentName] = document
@@ -69,9 +71,19 @@ func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
 	if graphErr != nil || jobsErr != nil {
 		b.WriteString(`<p style="color:#b91c1c;">` + html.EscapeString(fmt.Sprint(graphErr, " ", jobsErr)) + `</p>`)
 	} else {
-		b.WriteString(`<table border="1" cellpadding="6" cellspacing="0"><tr><th>ID</th><th>Document</th><th>Status</th><th>Progress</th><th>Entities</th><th>Relationships</th><th>Tokens</th><th>Created</th><th>Error</th></tr>`)
+		b.WriteString(`<table border="1" cellpadding="6" cellspacing="0"><tr><th>ID</th><th>Document</th><th>Status</th><th>Progress</th><th>Entities</th><th>Relationships</th><th>Tokens</th><th>Created</th><th>Started</th><th>Finished</th><th>Error</th></tr>`)
 		for _, job := range jobs {
-			b.WriteString(fmt.Sprintf(`<tr><td>%d</td><td>%s</td><td>%s</td><td>%d/%d</td><td>%d</td><td>%d</td><td>%d + %d</td><td>%s</td><td>%s</td></tr>`, job.ID, html.EscapeString(job.DocumentName), html.EscapeString(job.Status), job.ProcessedChunks, job.TotalChunks, job.EntityCount, job.RelationshipCount, job.PromptTokens, job.CompletionTokens, html.EscapeString(job.CreatedAt.Format(time.RFC3339)), html.EscapeString(job.LastError)))
+			b.WriteString(fmt.Sprintf(`<tr><td>%d</td><td>%s</td><td>%s</td><td>%d/%d</td><td>%d</td><td>%d</td><td>%d + %d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>`, job.ID, html.EscapeString(job.DocumentName), html.EscapeString(job.Status), job.ProcessedChunks, job.TotalChunks, job.EntityCount, job.RelationshipCount, job.PromptTokens, job.CompletionTokens, html.EscapeString(job.CreatedAt.Format(time.RFC3339)), graphOptionalTime(job.StartedAt), graphOptionalTime(job.FinishedAt), html.EscapeString(job.LastError)))
+		}
+		b.WriteString(`</table>`)
+	}
+	b.WriteString(`<h3>Extraction audit</h3><p>Authenticated operational trace of provider output, validation errors, and token use. Output is truncated for display.</p>`)
+	if auditsErr != nil {
+		b.WriteString(`<p style="color:#b91c1c;">` + html.EscapeString(auditsErr.Error()) + `</p>`)
+	} else {
+		b.WriteString(`<table border="1" cellpadding="6" cellspacing="0"><tr><th>ID</th><th>Job</th><th>Chunk</th><th>Tokens</th><th>Created</th><th>Validation error</th><th>Provider output</th></tr>`)
+		for _, audit := range audits {
+			b.WriteString(fmt.Sprintf(`<tr><td>%d</td><td>%d</td><td>%d</td><td>%d + %d</td><td>%s</td><td><pre>%s</pre></td><td><details><summary>View</summary><pre>%s</pre></details></td></tr>`, audit.ID, audit.JobID, audit.ChunkIndex, audit.PromptTokens, audit.CompletionTokens, html.EscapeString(audit.CreatedAt.Format(time.RFC3339)), html.EscapeString(graphDisplayText(audit.ValidationError, 2000)), html.EscapeString(graphDisplayText(audit.RawResponse, 4000))))
 		}
 		b.WriteString(`</table>`)
 	}
@@ -202,10 +214,26 @@ func graphStaleBadge(stale bool) string {
 	return ""
 }
 
+func graphOptionalTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return html.EscapeString(value.Format(time.RFC3339))
+}
+
+func graphDisplayText(value string, maxRunes int) string {
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return string(runes[:maxRunes]) + "…"
+}
+
 func graphRAGActionForm(r *http.Request, action, documentName, label, confirm string) string {
 	confirmAttribute := ""
 	if confirm != "" {
-		confirmAttribute = ` onsubmit="return confirm('` + html.EscapeString(confirm) + `');"`
+		encoded, _ := json.Marshal(confirm)
+		confirmAttribute = ` onsubmit="return confirm(` + html.EscapeString(string(encoded)) + `);"`
 	}
 	return `<form method="post" action="` + html.EscapeString(action) + `" style="display:inline;"` + confirmAttribute + `>` + adminCSRFInput(r) + `<input type="hidden" name="document_name" value="` + html.EscapeString(documentName) + `"><button type="submit">` + html.EscapeString(label) + `</button></form> `
 }

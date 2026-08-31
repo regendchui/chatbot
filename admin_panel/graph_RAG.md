@@ -44,9 +44,10 @@ not dynamic labels. Entities contain canonical names, normalized keys, aliases,
 and confidence. Relationship evidence contains description, confidence,
 document name, chunk index, and snapshot ID.
 
-Canonicalization normalizes whitespace and case. When the model supplies
-Chinese/English aliases, the stable lexical key across the canonical name and
-aliases merges high-confidence variants. Uncertain aliases remain separate.
+Canonicalization normalizes whitespace and case. New entities use the lexical
+minimum of the canonical name and aliases; later extractions reuse an existing
+entity whenever their canonical name or aliases overlap. Alias sets are merged,
+while uncertain aliases remain separate.
 
 ## Document lifecycle and snapshots
 
@@ -60,6 +61,11 @@ Only existing documents from **Admin → RAG** can be selected.
 6. Metadata atomically activates the successful snapshot.
 7. The previous snapshot is removed after activation.
 
+Job claims are leased through their progress timestamp. A worker interrupted
+for more than five minutes is returned to the queue, so a restart cannot leave
+a document permanently in `building`. Per-document advisory locking prevents
+concurrent requests from creating duplicate queued builds.
+
 If extraction or storage fails, the job is marked failed, the document remains
 stale, and its previous successful snapshot continues serving queries.
 
@@ -68,6 +74,11 @@ Deleting a traditional document removes its graph provenance. Shared entities
 are deleted only when no remaining `MENTIONS` or `RELATED_TO` evidence supports
 them. Changing extraction settings marks selected documents `rebuild required`
 without automatically spending model tokens.
+
+Each queued job records an extraction-settings hash and uses one frozen settings
+snapshot for all chunks. Activation checks the document's required hash again;
+if settings changed during a build, the previous snapshot stays active and the
+document remains `rebuild required`.
 
 ## Extraction settings
 
@@ -155,7 +166,9 @@ It provides:
 
 - document selection, rebuild, stale rebuild, and provenance removal;
 - queued/running/completed/failed jobs and chunk progress;
-- entity/relationship counts, token usage, timestamps, and errors;
+- entity/relationship counts, token usage, created/started/finished timestamps,
+  and errors;
+- authenticated extraction audits with provider output and validation errors;
 - natural-language retrieval testing;
 - resolved evidence, provenance, generated context, and trace details;
 - read-only SVG neighborhood preview and an accessible evidence table; and

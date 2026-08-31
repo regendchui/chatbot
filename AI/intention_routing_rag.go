@@ -377,10 +377,14 @@ func ExecuteIntentionRoutingRAGGraphWithInboundMessages(ctx context.Context, enq
 	result.Context, _ = ComposeHybridRAGContext(traditionalContext, strings.Join(graphContexts, "\n\n"), hybridRAGMaxContextChars())
 	result.Trace.PromptPartCount = len(result.PromptParts) + len(result.GraphPromptParts)
 	result.Trace.ContextChars = len([]rune(result.Context))
-	result.Trace.NoMatch = len(result.PromptParts) == 0
+	result.Trace.NoMatch = routingRAGNoMatch(result)
 	result.Trace.DurationMS = time.Since(started).Milliseconds()
 	log.Printf("Intention Routing RAG execution revision=%d duration_ms=%d blocks=%d prompt_parts=%d context_chars=%d errors=%d", revision, result.Trace.DurationMS, len(result.Trace.Blocks), result.Trace.PromptPartCount, result.Trace.ContextChars, len(result.Trace.Errors))
 	return result, nil
+}
+
+func routingRAGNoMatch(result RoutingRAGResult) bool {
+	return len(result.PromptParts) == 0 && len(result.GraphPromptParts) == 0
 }
 
 func buildHybridRAGContext(ctx context.Context, query string, memory []common.Message, traditionalEnabled, graphEnabled bool) (string, string, error) {

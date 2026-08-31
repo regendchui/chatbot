@@ -73,6 +73,20 @@ func TestGraphRAGAGEIntegration(t *testing.T) {
 	if result.Relationships[0].DocumentName != documentName || result.Relationships[0].ChunkIndex != 0 {
 		t.Fatalf("provenance=%#v", result.Relationships[0])
 	}
+	if result.Relationships[0].From != "Wong Tai Sin Clinic" || result.Relationships[0].To != "Wong Tai Sin" {
+		t.Fatalf("relationship direction was reversed: %#v", result.Relationships[0])
+	}
+
+	if _, err := DB.Exec(ctx, `UPDATE graph_rag_jobs SET status='running',updated_at=CURRENT_TIMESTAMP-INTERVAL '10 minutes' WHERE id=$1`, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET status='building' WHERE id=$1`, job.DocumentID); err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := ClaimNextGraphRAGJob(ctx)
+	if err != nil || recovered == nil || recovered.ID != job.ID {
+		t.Fatalf("abandoned job was not recovered: %#v %v", recovered, err)
+	}
 	if err := RemoveGraphRAGDocument(ctx, documentName); err != nil {
 		t.Fatal(err)
 	}
