@@ -194,6 +194,9 @@ It provides:
   connectivity, confidence, and cross-document support while retaining entity
   type diversity; administrators can show 5–60 key concepts and 5–120
   relationships (defaults: 20 and 30);
+- upper-layer-first selection: 70% of available concept slots are filled by
+  directed hubs and bridge entities before remaining slots add category
+  diversity, so leaf details do not displace the principal concepts;
 - collision-free category colors generated from the visible entity-type set,
   with a dedicated legend band separated from the concept-map layout;
 - a reserved footer band that anchors the displayed/total count summary at the
