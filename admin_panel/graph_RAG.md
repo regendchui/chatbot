@@ -192,10 +192,13 @@ It provides:
   showing their shared canonical entities in the single project graph;
 - a concept-map summary for that combined preview, ranking entities by
   connectivity, confidence, and cross-document support while retaining entity
-  type diversity (up to 30 concepts and 45 important relationships);
+  type diversity; administrators can show 5–60 key concepts and 5–120
+  relationships (defaults: 20 and 30);
 - interactive SVG query and document previews with zoom in/out, fit-to-view,
   drag panning, multi-line bounded card labels, relationship tooltips, and an
   accessible evidence table; and
+- full-view PNG export for combined concept maps and user-query maps, independent
+  of the current zoom and pan position; and
 - confirmed full-graph deletion without deleting traditional RAG documents.
 
 Each document or combined preview is bounded to 250 entities and 500
