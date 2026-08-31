@@ -1,6 +1,6 @@
 services: # Define all services for this stack.
   postgres: # PostgreSQL service used by app and whatsmeow session store.
-    image: postgres:15 # Use official PostgreSQL 15 image.
+    image: apache/age:release_PG15_1.6.0 # PostgreSQL 15 with Apache AGE 1.6.0; preserves the existing PG15 volume format.
     container_name: wa_postgres # Set deterministic container name.
     restart: always # Always restart container if it crashes/stops unexpectedly.
     environment: # Define PostgreSQL bootstrap settings.

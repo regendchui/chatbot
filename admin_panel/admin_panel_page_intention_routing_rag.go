@@ -23,17 +23,20 @@ import (
 var intentionRoutingRAGEditorHTML string
 
 type intentionRoutingRAGEditorState struct {
-	Graph                common.IntentionRoutingRAGGraph `json:"graph"`
-	Status               string                          `json:"status"`
-	Revision             int                             `json:"revision"`
-	LockVersion          int                             `json:"lock_version"`
-	PublishedRevision    int                             `json:"published_revision"`
-	FeatureEnabled       bool                            `json:"feature_enabled"`
-	DefaultModel         string                          `json:"default_model"`
-	DefaultRoutingPrompt string                          `json:"default_routing_prompt"`
-	MaxInboundMessages   int                             `json:"max_inbound_messages"`
-	Documents            []string                        `json:"documents"`
-	UpdatedAt            string                          `json:"updated_at,omitempty"`
+	Graph                common.IntentionRoutingRAGGraph  `json:"graph"`
+	Status               string                           `json:"status"`
+	Revision             int                              `json:"revision"`
+	LockVersion          int                              `json:"lock_version"`
+	PublishedRevision    int                              `json:"published_revision"`
+	FeatureEnabled       bool                             `json:"feature_enabled"`
+	DefaultModel         string                           `json:"default_model"`
+	DefaultRoutingPrompt string                           `json:"default_routing_prompt"`
+	MaxInboundMessages   int                              `json:"max_inbound_messages"`
+	GraphRAGDefaults     common.GraphRAGRetrievalSettings `json:"graph_rag_defaults"`
+	GraphRAGEnabled      bool                             `json:"graph_rag_enabled"`
+	Documents            []string                         `json:"documents"`
+	GraphDocuments       []string                         `json:"graph_documents"`
+	UpdatedAt            string                           `json:"updated_at,omitempty"`
 }
 
 type intentionRoutingRAGGraphRequest struct {
@@ -285,6 +288,8 @@ func loadIntentionRoutingRAGEditorState(ctx context.Context) (intentionRoutingRA
 		DefaultModel:         defaultModel,
 		DefaultRoutingPrompt: common.DefaultIntentionRoutingPrompt,
 		MaxInboundMessages:   common.IntentionRoutingRAGMaxInboundMessages,
+		GraphRAGDefaults:     ai.CurrentGraphRAGRetrievalSettings(),
+		GraphRAGEnabled:      db.GetProjectSettingBool("GRAPH_RAG_ENABLED", false),
 		FeatureEnabled:       db.GetProjectSettingBool("INTENTION_ROUTING_RAG_ENABLED", false),
 	}
 	docs, err := db.ListRAGDocuments()
@@ -295,6 +300,15 @@ func loadIntentionRoutingRAGEditorState(ctx context.Context) (intentionRoutingRA
 		state.Documents = append(state.Documents, name)
 	}
 	sort.Strings(state.Documents)
+	graphDocs, graphDocsErr := db.ListGraphRAGDocuments(ctx)
+	if graphDocsErr == nil {
+		for _, document := range graphDocs {
+			if document.Selected && document.ActiveSnapshotID != "" {
+				state.GraphDocuments = append(state.GraphDocuments, document.DocumentName)
+			}
+		}
+		sort.Strings(state.GraphDocuments)
+	}
 	published, err := db.LoadPublishedIntentionRoutingRAGWorkflow(ctx)
 	if err != nil {
 		return state, err
@@ -306,6 +320,10 @@ func loadIntentionRoutingRAGEditorState(ctx context.Context) (intentionRoutingRA
 		state.UpdatedAt = published.UpdatedAt.Format(time.RFC3339)
 		if err := json.Unmarshal(published.Graph, &state.Graph); err != nil {
 			return state, fmt.Errorf("parse published workflow: %w", err)
+		}
+		state.Graph, err = common.NormalizeIntentionRoutingRAGGraph(state.Graph)
+		if err != nil {
+			return state, err
 		}
 	}
 	draft, err := db.LoadIntentionRoutingRAGDraft(ctx)
@@ -320,6 +338,10 @@ func loadIntentionRoutingRAGEditorState(ctx context.Context) (intentionRoutingRA
 		if err := json.Unmarshal(draft.Graph, &state.Graph); err != nil {
 			return state, fmt.Errorf("parse draft workflow: %w", err)
 		}
+		state.Graph, err = common.NormalizeIntentionRoutingRAGGraph(state.Graph)
+		if err != nil {
+			return state, err
+		}
 	}
 	return state, nil
 }
@@ -333,7 +355,17 @@ func validateIntentionRoutingRAGGraphAgainstDocuments(graph common.IntentionRout
 	for name := range docs {
 		docSet[name] = struct{}{}
 	}
-	return common.ValidateIntentionRoutingRAGGraph(graph, docSet), nil
+	graphRows, err := db.ListGraphRAGDocuments(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	graphDocSet := map[string]struct{}{}
+	for _, document := range graphRows {
+		if document.Selected && document.ActiveSnapshotID != "" {
+			graphDocSet[document.DocumentName] = struct{}{}
+		}
+	}
+	return common.ValidateIntentionRoutingRAGGraph(graph, docSet, graphDocSet), nil
 }
 
 func validateIntentionRoutingRAGDraftShape(graph common.IntentionRoutingRAGGraph) string {

@@ -51,6 +51,8 @@ type RoutingBlockTrace struct {
 	LatencyMS           int64                `json:"latency_ms"`
 	RetryCount          int                  `json:"retry_count,omitempty"`
 	Error               string               `json:"error,omitempty"`
+	GraphRAGMode        common.GraphRAGMode  `json:"graph_rag_mode,omitempty"`
+	GraphRAGDebug       string               `json:"graph_rag_debug,omitempty"`
 }
 
 type RoutingTrace struct {
@@ -65,9 +67,17 @@ type RoutingTrace struct {
 }
 
 type RoutingRAGResult struct {
-	PromptParts []RAGPromptPart `json:"prompt_parts"`
-	Context     string          `json:"context"`
-	Trace       RoutingTrace    `json:"trace"`
+	PromptParts      []RAGPromptPart      `json:"prompt_parts"`
+	GraphPromptParts []GraphRAGPromptPart `json:"graph_prompt_parts,omitempty"`
+	Context          string               `json:"context"`
+	Trace            RoutingTrace         `json:"trace"`
+}
+
+type GraphRAGPromptPart struct {
+	BlockID   string `json:"block_id"`
+	BlockName string `json:"block_name"`
+	Context   string `json:"context"`
+	Debug     string `json:"debug"`
 }
 
 type routingAPIResponse struct {
@@ -116,13 +126,12 @@ func BuildRAGContextForModeWithDebug(ctx context.Context, query string, memory [
 		return "", "rag_mode=disabled", nil
 	}
 	if mode == RAGExecutionModeStandard {
-		return buildRAGContextEnabled(query)
-	}
-	if mode == RAGExecutionModeConfigured && !ragEnabled() {
-		return "", "rag_enabled=false", nil
+		traditionalEnabled := db.GetProjectSettingBool("AUTO_AI_TRADITIONAL_RAG_ENABLED", true)
+		graphEnabled := db.GetProjectSettingBool("AUTO_AI_GRAPH_RAG_ENABLED", false)
+		return buildHybridRAGContext(ctx, query, memory, traditionalEnabled, graphEnabled)
 	}
 	if mode == RAGExecutionModeConfigured && !intentionRoutingRAGEnabled() {
-		return buildRAGContextInternal(query)
+		return buildHybridRAGContext(ctx, query, memory, ragEnabled(), graphRAGEnabled())
 	}
 	published, err := db.LoadPublishedIntentionRoutingRAGWorkflow(ctx)
 	if err != nil {
@@ -134,6 +143,10 @@ func BuildRAGContextForModeWithDebug(ctx context.Context, query string, memory [
 	var graph common.IntentionRoutingRAGGraph
 	if err := json.Unmarshal(published.Graph, &graph); err != nil {
 		return "", "intention_routing_rag_enabled=true workflow_parse_error=true", fmt.Errorf("parse published Intention Routing RAG workflow: %w", err)
+	}
+	graph, err = common.NormalizeIntentionRoutingRAGGraph(graph)
+	if err != nil {
+		return "", "intention_routing_rag_enabled=true workflow_schema_error=true", err
 	}
 	maxInboundMessages := 1
 	for _, node := range graph.Nodes {
@@ -168,6 +181,11 @@ func ExecuteIntentionRoutingRAGGraph(ctx context.Context, enquiry string, revisi
 func ExecuteIntentionRoutingRAGGraphWithInboundMessages(ctx context.Context, enquiry string, memory []common.Message, revision int, graph common.IntentionRoutingRAGGraph) (RoutingRAGResult, error) {
 	started := time.Now().UTC()
 	result := RoutingRAGResult{Trace: RoutingTrace{WorkflowRevision: revision, StartedAt: started}}
+	var err error
+	graph, err = common.NormalizeIntentionRoutingRAGGraph(graph)
+	if err != nil {
+		return result, err
+	}
 	docsMap, err := db.ListRAGDocuments()
 	if err != nil {
 		return result, fmt.Errorf("list RAG documents for workflow: %w", err)
@@ -307,18 +325,43 @@ func ExecuteIntentionRoutingRAGGraphWithInboundMessages(ctx context.Context, enq
 					result.Trace.Errors = append(result.Trace.Errors, fmt.Sprintf("block %s: %s", node.ID, message))
 				}
 			}
-			vector, vectorErr := getQueryVector(blockEnquiry)
-			if vectorErr != nil {
-				message := "query embedding: " + vectorErr.Error()
-				appendRoutingBlockError(&trace, message)
-				result.Trace.Errors = append(result.Trace.Errors, fmt.Sprintf("block %s: %s", node.ID, message))
-			} else {
-				parts, retrieveErr := retrieveRAGPromptParts(ctx, node.ID, node.Name, documents, node.RAG.Documents, 0, 0, vector)
-				if retrieveErr != nil {
-					appendRoutingBlockError(&trace, retrieveErr.Error())
-					result.Trace.Errors = append(result.Trace.Errors, fmt.Sprintf("block %s: %v", node.ID, retrieveErr))
+			if len(documents) > 0 {
+				vector, vectorErr := getQueryVector(blockEnquiry)
+				if vectorErr != nil {
+					message := "query embedding: " + vectorErr.Error()
+					appendRoutingBlockError(&trace, message)
+					result.Trace.Errors = append(result.Trace.Errors, fmt.Sprintf("block %s: %s", node.ID, message))
 				} else {
-					result.PromptParts = append(result.PromptParts, parts...)
+					parts, retrieveErr := retrieveRAGPromptParts(ctx, node.ID, node.Name, documents, node.RAG.Documents, 0, 0, vector)
+					if retrieveErr != nil {
+						appendRoutingBlockError(&trace, retrieveErr.Error())
+						result.Trace.Errors = append(result.Trace.Errors, fmt.Sprintf("block %s: %v", node.ID, retrieveErr))
+					} else {
+						result.PromptParts = append(result.PromptParts, parts...)
+					}
+				}
+			}
+			trace.GraphRAGMode = node.RAG.GraphRAG.Mode
+			graphDocuments := []string(nil)
+			graphSettings := graphRAGRetrievalSettings()
+			graphBlockEnabled := false
+			switch node.RAG.GraphRAG.Mode {
+			case common.GraphRAGModeInherit:
+				graphBlockEnabled = graphRAGEnabled()
+			case common.GraphRAGModeOverride:
+				graphBlockEnabled = true
+				graphDocuments = append([]string(nil), node.RAG.GraphRAG.Documents...)
+				graphSettings = node.RAG.GraphRAG.Settings
+			}
+			if graphBlockEnabled {
+				graphContext, graphDebug, graphErr := BuildGraphRAGContextWithDebug(ctx, blockEnquiry, nil, graphDocuments, graphSettings)
+				trace.GraphRAGDebug = graphDebug
+				if graphErr != nil {
+					message := "Graph RAG retrieval: " + graphErr.Error()
+					appendRoutingBlockError(&trace, message)
+					result.Trace.Errors = append(result.Trace.Errors, fmt.Sprintf("block %s: %s", node.ID, message))
+				} else if strings.TrimSpace(graphContext) != "" {
+					result.GraphPromptParts = append(result.GraphPromptParts, GraphRAGPromptPart{BlockID: node.ID, BlockName: node.Name, Context: graphContext, Debug: graphDebug})
 				}
 			}
 		}
@@ -326,13 +369,46 @@ func ExecuteIntentionRoutingRAGGraphWithInboundMessages(ctx context.Context, enq
 		result.Trace.Blocks = append(result.Trace.Blocks, trace)
 	}
 
-	result.Context = assembleIntentionRoutingRAGContext(result.PromptParts, ragMaxContextChars())
-	result.Trace.PromptPartCount = len(result.PromptParts)
+	traditionalContext := assembleIntentionRoutingRAGContext(result.PromptParts, ragMaxContextChars())
+	graphContexts := make([]string, 0, len(result.GraphPromptParts))
+	for _, part := range result.GraphPromptParts {
+		graphContexts = append(graphContexts, "Graph block: "+part.BlockName+"\n"+part.Context)
+	}
+	result.Context, _ = ComposeHybridRAGContext(traditionalContext, strings.Join(graphContexts, "\n\n"), hybridRAGMaxContextChars())
+	result.Trace.PromptPartCount = len(result.PromptParts) + len(result.GraphPromptParts)
 	result.Trace.ContextChars = len([]rune(result.Context))
 	result.Trace.NoMatch = len(result.PromptParts) == 0
 	result.Trace.DurationMS = time.Since(started).Milliseconds()
 	log.Printf("Intention Routing RAG execution revision=%d duration_ms=%d blocks=%d prompt_parts=%d context_chars=%d errors=%d", revision, result.Trace.DurationMS, len(result.Trace.Blocks), result.Trace.PromptPartCount, result.Trace.ContextChars, len(result.Trace.Errors))
 	return result, nil
+}
+
+func buildHybridRAGContext(ctx context.Context, query string, memory []common.Message, traditionalEnabled, graphEnabled bool) (string, string, error) {
+	traditionalContext := ""
+	traditionalDebug := "traditional_rag_enabled=false"
+	if traditionalEnabled {
+		contextText, debug, err := buildRAGContextEnabled(query)
+		traditionalDebug = debug
+		if err != nil {
+			traditionalDebug = "traditional_rag_error=" + err.Error()
+		} else {
+			traditionalContext = contextText
+		}
+	}
+	graphContext := ""
+	graphDebug := "graph_rag_enabled=false"
+	if graphEnabled {
+		contextText, debug, err := BuildGraphRAGContextWithDebug(ctx, query, memory, nil, graphRAGRetrievalSettings())
+		graphDebug = debug
+		if err != nil {
+			graphDebug = "graph_rag_error=" + err.Error()
+		} else {
+			graphContext = contextText
+		}
+	}
+	combined, hybridTrace := ComposeHybridRAGContext(traditionalContext, graphContext, hybridRAGMaxContextChars())
+	traceBytes, _ := json.Marshal(hybridTrace)
+	return combined, traditionalDebug + " " + graphDebug + " hybrid=" + string(traceBytes), nil
 }
 
 func buildIntentionRoutingRAGEnquiry(enquiry string, memory []common.Message, count int) string {

@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"os"
@@ -169,12 +170,22 @@ func IndexDocumentForRAG(documentName string, documentText string) (int, error) 
 		}
 		inserted++
 	}
+	if err := db.MarkGraphRAGDocumentStaleAndQueueIfSelected(context.Background(), doc, GraphRAGExtractionSettingsHash()); err != nil {
+		log.Printf("Graph RAG reindex hook for %q failed: %v", doc, err)
+	}
 	return inserted, nil
 }
 
 // DeleteDocumentFromRAG removes all embeddings for one document name.
 func DeleteDocumentFromRAG(documentName string) (int64, error) {
-	return db.DeleteRAGByDocument(documentName)
+	deleted, err := db.DeleteRAGByDocument(documentName)
+	if err != nil {
+		return 0, err
+	}
+	if graphErr := db.RemoveGraphRAGDocument(context.Background(), documentName); graphErr != nil {
+		log.Printf("Graph RAG deletion hook for %q failed: %v", strings.TrimSpace(documentName), graphErr)
+	}
+	return deleted, nil
 }
 
 // BuildRAGContext retrieves most relevant chunks for query text.

@@ -16,13 +16,13 @@ import (
 )
 
 type adminEngagementRow struct {
-	Name               string
-	Phone              string
-	BaselineAt         time.Time
-	WeekReached        []bool
-	WeekCounts         []int
-	PeriodDays         int
-	WeekCount          int
+	Name                  string
+	Phone                 string
+	BaselineAt            time.Time
+	WeekReached           []bool
+	WeekCounts            []int
+	PeriodDays            int
+	WeekCount             int
 	ExcludeFromEngagement bool
 }
 

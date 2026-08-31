@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"whatsapp-bot/common"
 )
 
 const (
@@ -45,6 +47,19 @@ const (
 	defaultRAGMaxContextChars              = 2500
 	defaultRAGSliceProtectOpenSignal       = ""
 	defaultRAGSliceProtectCloseSignal      = ""
+	defaultGraphRAGEnabled                 = false
+	defaultGraphRAGExtractionModel         = "google/gemini-2.5-flash"
+	defaultGraphRAGExtractionPrompt        = "Extract factual entities and relationships from the evidence. Return JSON only."
+	defaultGraphRAGMinExtractionConfidence = "0.5"
+	defaultGraphRAGBatchSize               = 5
+	defaultGraphRAGConcurrency             = 1
+	defaultGraphRAGRetryCount              = 1
+	defaultGraphRAGExtractionTimeoutMS     = 30000
+	defaultGraphRAGQueryModel              = "google/gemini-2.5-flash"
+	defaultGraphRAGQueryPrompt             = "Identify the entities needed to answer the user enquiry. Return JSON only."
+	defaultGraphRAGIncludeCitations        = false
+	defaultAutoAITraditionalRAGEnabled     = true
+	defaultAutoAIGraphRAGEnabled           = false
 	defaultCollectiveResponse              = false
 	defaultCollectiveResponseDelaySec      = 3
 	defaultMessageSliceEnabled             = false
@@ -292,6 +307,28 @@ func defaultProjectEnvVariables() (map[string]string, error) {
 		"RAG_MAX_CONTEXT_CHARS":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RAG_MAX_CONTEXT_CHARS")), strconv.Itoa(defaultRAGMaxContextChars)),
 		"RAG_SLICE_PROTECT_OPEN_SIGNAL":       nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RAG_SLICE_PROTECT_OPEN_SIGNAL")), defaultRAGSliceProtectOpenSignal),
 		"RAG_SLICE_PROTECT_CLOSE_SIGNAL":      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("RAG_SLICE_PROTECT_CLOSE_SIGNAL")), defaultRAGSliceProtectCloseSignal),
+		"GRAPH_RAG_ENABLED":                   nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_ENABLED")), boolString(defaultGraphRAGEnabled)),
+		"GRAPH_RAG_EXTRACTION_MODEL":          nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_EXTRACTION_MODEL")), defaultGraphRAGExtractionModel),
+		"GRAPH_RAG_EXTRACTION_PROMPT":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_EXTRACTION_PROMPT")), defaultGraphRAGExtractionPrompt),
+		"GRAPH_RAG_MIN_EXTRACTION_CONFIDENCE": nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_MIN_EXTRACTION_CONFIDENCE")), defaultGraphRAGMinExtractionConfidence),
+		"GRAPH_RAG_BATCH_SIZE":                nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_BATCH_SIZE")), strconv.Itoa(defaultGraphRAGBatchSize)),
+		"GRAPH_RAG_CONCURRENCY":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_CONCURRENCY")), strconv.Itoa(defaultGraphRAGConcurrency)),
+		"GRAPH_RAG_RETRY_COUNT":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_RETRY_COUNT")), strconv.Itoa(defaultGraphRAGRetryCount)),
+		"GRAPH_RAG_EXTRACTION_TIMEOUT_MS":     nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_EXTRACTION_TIMEOUT_MS")), strconv.Itoa(defaultGraphRAGExtractionTimeoutMS)),
+		"GRAPH_RAG_QUERY_MODEL":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_QUERY_MODEL")), defaultGraphRAGQueryModel),
+		"GRAPH_RAG_QUERY_PROMPT":              nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_QUERY_PROMPT")), defaultGraphRAGQueryPrompt),
+		"GRAPH_RAG_INBOUND_MESSAGE_COUNT":     nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_INBOUND_MESSAGE_COUNT")), strconv.Itoa(common.DefaultGraphRAGInboundMessageCount)),
+		"GRAPH_RAG_MAX_TRAVERSAL_DEPTH":       nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_MAX_TRAVERSAL_DEPTH")), strconv.Itoa(common.DefaultGraphRAGTraversalDepth)),
+		"GRAPH_RAG_MAX_SEED_ENTITIES":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_MAX_SEED_ENTITIES")), strconv.Itoa(common.DefaultGraphRAGSeedEntities)),
+		"GRAPH_RAG_MAX_ENTITIES":              nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_MAX_ENTITIES")), strconv.Itoa(common.DefaultGraphRAGMaxEntities)),
+		"GRAPH_RAG_MAX_RELATIONSHIPS":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_MAX_RELATIONSHIPS")), strconv.Itoa(common.DefaultGraphRAGMaxRelationships)),
+		"GRAPH_RAG_MAX_CONTEXT_CHARS":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_MAX_CONTEXT_CHARS")), strconv.Itoa(common.DefaultGraphRAGMaxContextChars)),
+		"GRAPH_RAG_MIN_MATCH_CONFIDENCE":      nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_MIN_MATCH_CONFIDENCE")), strconv.FormatFloat(common.DefaultGraphRAGMinMatchConfidence, 'f', -1, 64)),
+		"GRAPH_RAG_TIMEOUT_MS":                nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_TIMEOUT_MS")), strconv.Itoa(common.DefaultGraphRAGTimeoutMS)),
+		"HYBRID_RAG_MAX_CONTEXT_CHARS":        nonEmptyOrDefault(strings.TrimSpace(os.Getenv("HYBRID_RAG_MAX_CONTEXT_CHARS")), strconv.Itoa(common.DefaultHybridRAGMaxContextChars)),
+		"GRAPH_RAG_INCLUDE_CITATIONS":         nonEmptyOrDefault(strings.TrimSpace(os.Getenv("GRAPH_RAG_INCLUDE_CITATIONS")), boolString(defaultGraphRAGIncludeCitations)),
+		"AUTO_AI_TRADITIONAL_RAG_ENABLED":     nonEmptyOrDefault(strings.TrimSpace(os.Getenv("AUTO_AI_TRADITIONAL_RAG_ENABLED")), boolString(defaultAutoAITraditionalRAGEnabled)),
+		"AUTO_AI_GRAPH_RAG_ENABLED":           nonEmptyOrDefault(strings.TrimSpace(os.Getenv("AUTO_AI_GRAPH_RAG_ENABLED")), boolString(defaultAutoAIGraphRAGEnabled)),
 		"COLLECTIVE_RESPONSE":                 nonEmptyOrDefault(strings.TrimSpace(os.Getenv("COLLECTIVE_RESPONSE")), boolString(defaultCollectiveResponse)),
 		"DELAY_COLLECTIVE_RESPONSE_SECONDS":   nonEmptyOrDefault(strings.TrimSpace(os.Getenv("DELAY_COLLECTIVE_RESPONSE_SECONDS")), strconv.Itoa(defaultCollectiveResponseDelaySec)),
 		"MESSAGE_SLICE_ENABLED":               nonEmptyOrDefault(strings.TrimSpace(os.Getenv("MESSAGE_SLICE_ENABLED")), boolString(defaultMessageSliceEnabled)),

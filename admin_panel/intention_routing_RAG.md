@@ -29,11 +29,11 @@ Add `INTENTION_ROUTING_RAG_ENABLED` to the RAG Settings section of `/admin/confi
 | `true` with a valid published workflow | Do not run the existing all-document search. Execute the published Intention Routing RAG workflow and use only chunks returned by reached RAG blocks. |
 | `true` without a valid published workflow | Reject enabling or publishing in the admin panel. A stale or missing workflow at runtime must fail closed and must not silently search all documents. |
 
-`INTENTION_ROUTING_RAG_ENABLED` controls the routing method. `RAG_ENABLED` remains the master switch for all RAG retrieval. Therefore:
+`INTENTION_ROUTING_RAG_ENABLED` controls the routing workflow. Traditional RAG and Graph RAG now have independent switches. Therefore:
 
-- `RAG_ENABLED=false`: no standard RAG and no Intention Routing RAG retrieval.
-- `RAG_ENABLED=true` and `INTENTION_ROUTING_RAG_ENABLED=false`: existing standard RAG.
-- `RAG_ENABLED=true` and `INTENTION_ROUTING_RAG_ENABLED=true`: Intention Routing RAG.
+- `INTENTION_ROUTING_RAG_ENABLED=false`: standard retrieval can run traditional RAG, Graph RAG, both, or neither according to `RAG_ENABLED` and `GRAPH_RAG_ENABLED`.
+- `INTENTION_ROUTING_RAG_ENABLED=true`: reached RAG blocks decide traditional and Graph RAG behavior. Graph settings are embedded in the existing RAG block and can inherit, override, or disable the general Graph RAG configuration.
+- Existing schema-version-1 workflows are normalized with Graph RAG disabled so their behavior remains unchanged.
 
 Disabling Intention Routing RAG must not delete the draft or published graph. Re-enabling it reuses the published revision.
 

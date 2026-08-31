@@ -111,6 +111,7 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<p><label>RAG_MAX_CONTEXT_CHARS<br><input type="number" min="200" step="1" inputmode="numeric" name="RAG_MAX_CONTEXT_CHARS" value="` + html.EscapeString(envVars["RAG_MAX_CONTEXT_CHARS"]) + `" required></label></p>`)
 	b.WriteString(`<p><label>RAG_SLICE_PROTECT_OPEN_SIGNAL (optional)<br><input name="RAG_SLICE_PROTECT_OPEN_SIGNAL" value="` + html.EscapeString(envVars["RAG_SLICE_PROTECT_OPEN_SIGNAL"]) + `" style="width:100%;max-width:520px;" placeholder="{$open_signal$}"></label></p>`)
 	b.WriteString(`<p><label>RAG_SLICE_PROTECT_CLOSE_SIGNAL (optional)<br><input name="RAG_SLICE_PROTECT_CLOSE_SIGNAL" value="` + html.EscapeString(envVars["RAG_SLICE_PROTECT_CLOSE_SIGNAL"]) + `" style="width:100%;max-width:520px;" placeholder="{$close_signal$}"></label></p>`)
+	b.WriteString(adminGraphRAGSettingsHTML(envVars))
 	b.WriteString(`<p><button type="submit">Save RAG settings</button></p>`)
 	b.WriteString(`</form>`)
 
@@ -123,7 +124,9 @@ func adminConfigurationHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<h3>Auto Cron AI Retrieval and Throttle</h3>`)
 	b.WriteString(`<form method="post" action="/admin/configuration/update/cron-delay">`)
 	b.WriteString(`<p><label>RAG mode for auto cron AI messages<br><select name="AUTO_AI_RAG_MODE">` + adminAutoAIRAGModeOptions(envVars["AUTO_AI_RAG_MODE"]) + `</select></label></p>`)
-	b.WriteString(`<p style="font-size:13px;color:#64748b;">This setting applies only to scheduled auto AI messages. Standard RAG searches all indexed documents; Intention Routing RAG uses the published workflow; Disabled adds no document context.</p>`)
+	b.WriteString(`<p style="font-size:13px;color:#64748b;">This setting applies only to scheduled auto AI messages. Standard uses the retrieval toggles below; Intention uses each reached RAG block; Disabled adds no retrieval context.</p>`)
+	b.WriteString(`<p>AUTO_AI_TRADITIONAL_RAG_ENABLED<br>` + adminBoolRadioGroup("AUTO_AI_TRADITIONAL_RAG_ENABLED", envVars["AUTO_AI_TRADITIONAL_RAG_ENABLED"]) + `</p>`)
+	b.WriteString(`<p>AUTO_AI_GRAPH_RAG_ENABLED<br>` + adminBoolRadioGroup("AUTO_AI_GRAPH_RAG_ENABLED", envVars["AUTO_AI_GRAPH_RAG_ENABLED"]) + `</p>`)
 	b.WriteString(`<p><label>CRON_SEND_MIN_DELAY_SECONDS<br><input type="number" min="0" step="1" inputmode="numeric" name="CRON_SEND_MIN_DELAY_SECONDS" value="` + html.EscapeString(envVars["CRON_SEND_MIN_DELAY_SECONDS"]) + `" required></label></p>`)
 	b.WriteString(`<p><label>CRON_SEND_MAX_DELAY_SECONDS<br><input type="number" min="0" step="1" inputmode="numeric" name="CRON_SEND_MAX_DELAY_SECONDS" value="` + html.EscapeString(envVars["CRON_SEND_MAX_DELAY_SECONDS"]) + `" required></label></p>`)
 	b.WriteString(`<p><button type="submit">Save cron delay settings</button></p>`)
@@ -442,21 +445,23 @@ func adminConfigurationUpdateRAGHandler(w http.ResponseWriter, r *http.Request) 
 			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is invalid.")
 			return
 		}
-		docs, docsErr := db.ListRAGDocuments()
+		issues, docsErr := validateIntentionRoutingRAGGraphAgainstDocuments(graph)
 		if docsErr != nil {
 			adminConfigRedirect(w, r, "Failed to verify workflow RAG documents.")
 			return
 		}
-		docSet := make(map[string]struct{}, len(docs))
-		for name := range docs {
-			docSet[name] = struct{}{}
-		}
-		if issues := common.ValidateIntentionRoutingRAGGraph(graph, docSet); len(issues) > 0 {
+		if len(issues) > 0 {
 			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is no longer valid: "+issues[0].Message)
 			return
 		}
 	}
-	if err := db.UpdateProjectEnvVariables(map[string]string{
+	graphSettings, graphErr := adminParseGraphRAGSettings(r)
+	if graphErr != nil {
+		adminConfigRedirect(w, r, graphErr.Error())
+		return
+	}
+	oldExtractionHash := ai.GraphRAGExtractionSettingsHash()
+	updates := map[string]string{
 		"RAG_ENABLED":                    strings.TrimSpace(r.FormValue("RAG_ENABLED")),
 		"INTENTION_ROUTING_RAG_ENABLED":  strings.TrimSpace(r.FormValue("INTENTION_ROUTING_RAG_ENABLED")),
 		"RAG_CHUNK_SIZE":                 chunkSize,
@@ -468,9 +473,16 @@ func adminConfigurationUpdateRAGHandler(w http.ResponseWriter, r *http.Request) 
 		"RAG_MAX_CONTEXT_CHARS":          maxContextChars,
 		"RAG_SLICE_PROTECT_OPEN_SIGNAL":  openSignal,
 		"RAG_SLICE_PROTECT_CLOSE_SIGNAL": closeSignal,
-	}); err != nil {
+	}
+	for key, value := range graphSettings {
+		updates[key] = value
+	}
+	if err := db.UpdateProjectEnvVariables(updates); err != nil {
 		adminConfigRedirect(w, r, "Failed to save RAG settings.")
 		return
+	}
+	if oldExtractionHash != ai.GraphRAGExtractionSettingsHash() {
+		_ = db.MarkAllGraphRAGDocumentsStale(r.Context())
 	}
 	adminRecordConfigUpdateHistory(r, "update_rag_settings", "Updated RAG settings in configuration page")
 	adminConfigRedirect(w, r, "RAG settings updated.")
@@ -560,24 +572,22 @@ func adminConfigurationUpdateCronDelayHandler(w http.ResponseWriter, r *http.Req
 			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is invalid.")
 			return
 		}
-		documents, docsErr := db.ListRAGDocuments()
+		issues, docsErr := validateIntentionRoutingRAGGraphAgainstDocuments(graph)
 		if docsErr != nil {
 			adminConfigRedirect(w, r, "Failed to verify workflow RAG documents.")
 			return
 		}
-		documentSet := make(map[string]struct{}, len(documents))
-		for name := range documents {
-			documentSet[name] = struct{}{}
-		}
-		if issues := common.ValidateIntentionRoutingRAGGraph(graph, documentSet); len(issues) > 0 {
+		if len(issues) > 0 {
 			adminConfigRedirect(w, r, "The published Intention Routing RAG workflow is no longer valid: "+issues[0].Message)
 			return
 		}
 	}
 	if err := db.UpdateProjectEnvVariables(map[string]string{
-		"CRON_SEND_MIN_DELAY_SECONDS": minDelay,
-		"CRON_SEND_MAX_DELAY_SECONDS": maxDelay,
-		"AUTO_AI_RAG_MODE":            string(ragMode),
+		"CRON_SEND_MIN_DELAY_SECONDS":     minDelay,
+		"CRON_SEND_MAX_DELAY_SECONDS":     maxDelay,
+		"AUTO_AI_RAG_MODE":                string(ragMode),
+		"AUTO_AI_TRADITIONAL_RAG_ENABLED": strings.TrimSpace(r.FormValue("AUTO_AI_TRADITIONAL_RAG_ENABLED")),
+		"AUTO_AI_GRAPH_RAG_ENABLED":       strings.TrimSpace(r.FormValue("AUTO_AI_GRAPH_RAG_ENABLED")),
 	}); err != nil {
 		adminConfigRedirect(w, r, "Failed to save cron delay settings.")
 		return

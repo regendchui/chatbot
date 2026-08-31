@@ -8,6 +8,7 @@ import ( // Import all packages required by runtime bot logic.
 	"strings" // Clean and validate text values.
 	"time"
 
+	ai "whatsapp-bot/AI"
 	"whatsapp-bot/admin_panel"
 	"whatsapp-bot/common"
 	"whatsapp-bot/cron_task"
@@ -183,6 +184,7 @@ func main() { // Start application setup and keep bot alive.
 	cron_task.StartAutoAIMessageCron(client)       // Start immediate + daily AI auto-message cron worker.
 	cron_task.StartAutoFollowupMessageCron(client) // Start immediate + daily follow-up prompt cron worker.
 	cron_task.StartAutoManualMessageCron(client)   // Start immediate + daily manual-message cron worker.
+	ai.StartGraphRAGWorker()                       // Process persisted Graph RAG ingestion jobs.
 
 	// Optional startup message: send once only when explicitly enabled.
 	targetJID := strings.TrimSpace(os.Getenv("TARGET_JID"))

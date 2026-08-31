@@ -12,12 +12,13 @@ import (
 var intentionRoutingRAGIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 const (
-	IntentionRoutingRAGSchemaVersion      = 1
-	IntentionRoutingRAGMaxBlocks          = 100
-	IntentionRoutingRAGMaxOptions         = 20
-	IntentionRoutingRAGMaxDepth           = 10
-	IntentionRoutingRAGMaxInboundMessages = 20
-	DefaultIntentionRoutingPrompt         = "Classify the user enquiry against every intention option."
+	IntentionRoutingRAGSchemaVersion       = 2
+	IntentionRoutingRAGLegacySchemaVersion = 1
+	IntentionRoutingRAGMaxBlocks           = 100
+	IntentionRoutingRAGMaxOptions          = 20
+	IntentionRoutingRAGMaxDepth            = 10
+	IntentionRoutingRAGMaxInboundMessages  = 20
+	DefaultIntentionRoutingPrompt          = "Classify the user enquiry against every intention option."
 )
 
 type IntentionRoutingRAGGraph struct {
@@ -68,6 +69,34 @@ type IntentionRoutingRAGOption struct {
 type IntentionRoutingRAGRetrieval struct {
 	InboundMessageCount int                           `json:"inbound_message_count,omitempty"`
 	Documents           []IntentionRoutingRAGDocument `json:"documents"`
+	GraphRAG            IntentionRoutingGraphRAG      `json:"graph_rag"`
+}
+
+type IntentionRoutingGraphRAG struct {
+	Mode      GraphRAGMode              `json:"mode"`
+	Documents []string                  `json:"documents,omitempty"`
+	Settings  GraphRAGRetrievalSettings `json:"settings"`
+}
+
+func NormalizeIntentionRoutingRAGGraph(graph IntentionRoutingRAGGraph) (IntentionRoutingRAGGraph, error) {
+	switch graph.SchemaVersion {
+	case IntentionRoutingRAGLegacySchemaVersion:
+		graph.SchemaVersion = IntentionRoutingRAGSchemaVersion
+		for i := range graph.Nodes {
+			if graph.Nodes[i].RAG != nil {
+				graph.Nodes[i].RAG.GraphRAG = IntentionRoutingGraphRAG{Mode: GraphRAGModeDisabled}
+			}
+		}
+	case IntentionRoutingRAGSchemaVersion:
+		for i := range graph.Nodes {
+			if graph.Nodes[i].RAG != nil && graph.Nodes[i].RAG.GraphRAG.Mode == "" {
+				graph.Nodes[i].RAG.GraphRAG.Mode = GraphRAGModeDisabled
+			}
+		}
+	default:
+		return graph, fmt.Errorf("unsupported schema version %d", graph.SchemaVersion)
+	}
+	return graph, nil
 }
 
 func EffectiveIntentionRoutingRAGInboundMessageCount(value int) int {
@@ -117,13 +146,20 @@ func DefaultIntentionRoutingRAGGraph(model string) IntentionRoutingRAGGraph {
 	}
 }
 
-func ValidateIntentionRoutingRAGGraph(graph IntentionRoutingRAGGraph, documents map[string]struct{}) []IntentionRoutingRAGValidationIssue {
+func ValidateIntentionRoutingRAGGraph(graph IntentionRoutingRAGGraph, documents map[string]struct{}, graphDocumentSets ...map[string]struct{}) []IntentionRoutingRAGValidationIssue {
 	issues := make([]IntentionRoutingRAGValidationIssue, 0)
+	graphDocuments := documents
+	if len(graphDocumentSets) > 0 {
+		graphDocuments = graphDocumentSets[0]
+	}
 	add := func(path, message string) {
 		issues = append(issues, IntentionRoutingRAGValidationIssue{Path: path, Message: message})
 	}
-	if graph.SchemaVersion != IntentionRoutingRAGSchemaVersion {
-		add("schema_version", fmt.Sprintf("must be %d", IntentionRoutingRAGSchemaVersion))
+	normalized, normalizeErr := NormalizeIntentionRoutingRAGGraph(graph)
+	if normalizeErr != nil {
+		add("schema_version", fmt.Sprintf("must be %d or %d", IntentionRoutingRAGLegacySchemaVersion, IntentionRoutingRAGSchemaVersion))
+	} else {
+		graph = normalized
 	}
 	if len(graph.Nodes) > IntentionRoutingRAGMaxBlocks {
 		add("nodes", fmt.Sprintf("cannot contain more than %d blocks", IntentionRoutingRAGMaxBlocks))
@@ -182,7 +218,7 @@ func ValidateIntentionRoutingRAGGraph(graph IntentionRoutingRAGGraph, documents 
 			if node.Routing != nil {
 				add(path+".routing", "is not allowed for a RAG block")
 			}
-			validateRAGNode(path, node, documents, add)
+			validateRAGNode(path, node, documents, graphDocuments, add)
 		default:
 			add(path+".type", "must be input, routing, or rag")
 		}
@@ -373,12 +409,13 @@ func validateRoutingNode(path string, node IntentionRoutingRAGNode, documents ma
 	}
 }
 
-func validateRAGNode(path string, node IntentionRoutingRAGNode, documents map[string]struct{}, add func(string, string)) {
+func validateRAGNode(path string, node IntentionRoutingRAGNode, documents map[string]struct{}, graphDocuments map[string]struct{}, add func(string, string)) {
 	if node.RAG.InboundMessageCount < 0 || node.RAG.InboundMessageCount > IntentionRoutingRAGMaxInboundMessages {
 		add(path+".rag.inbound_message_count", fmt.Sprintf("must be between 1 and %d", IntentionRoutingRAGMaxInboundMessages))
 	}
-	if len(node.RAG.Documents) == 0 {
-		add(path+".rag.documents", "must contain at least one document")
+	graphEnabled := node.RAG.GraphRAG.Mode == GraphRAGModeInherit || node.RAG.GraphRAG.Mode == GraphRAGModeOverride
+	if len(node.RAG.Documents) == 0 && !graphEnabled {
+		add(path+".rag", "must enable traditional RAG, Graph RAG, or both")
 	}
 	seen := map[string]struct{}{}
 	for i, document := range node.RAG.Documents {
@@ -406,6 +443,41 @@ func validateRAGNode(path string, node IntentionRoutingRAGNode, documents map[st
 		if math.IsNaN(document.MinSimilarity) || math.IsInf(document.MinSimilarity, 0) || document.MinSimilarity < -1 || document.MinSimilarity > 1 {
 			add(docPath+".min_similarity", "must be between -1 and 1")
 		}
+	}
+	graphPath := path + ".rag.graph_rag"
+	switch node.RAG.GraphRAG.Mode {
+	case GraphRAGModeDisabled:
+	case GraphRAGModeInherit:
+		if len(node.RAG.GraphRAG.Documents) > 0 {
+			add(graphPath+".documents", "must be empty when mode is inherit")
+		}
+	case GraphRAGModeOverride:
+		if len(node.RAG.GraphRAG.Documents) == 0 {
+			add(graphPath+".documents", "must contain at least one document when mode is override")
+		}
+		seenGraphDocs := map[string]struct{}{}
+		for i, rawName := range node.RAG.GraphRAG.Documents {
+			name := strings.TrimSpace(rawName)
+			docPath := fmt.Sprintf("%s.documents[%d]", graphPath, i)
+			if name == "" {
+				add(docPath, "document name is required")
+				continue
+			}
+			if _, exists := seenGraphDocs[name]; exists {
+				add(docPath, "document cannot be selected twice")
+			}
+			seenGraphDocs[name] = struct{}{}
+			if graphDocuments != nil {
+				if _, exists := graphDocuments[name]; !exists {
+					add(docPath, "document is not selected and built on the Graph RAG page")
+				}
+			}
+		}
+		for _, issue := range ValidateGraphRAGRetrievalSettings(node.RAG.GraphRAG.Settings) {
+			add(graphPath+".settings."+issue.Field, issue.Message)
+		}
+	default:
+		add(graphPath+".mode", "must be inherit, override, or disabled")
 	}
 }
 

@@ -22,6 +22,30 @@ RAG_MAX_CONTEXT_CHARS=2500
 RAG_SLICE_PROTECT_OPEN_SIGNAL=[[OPEN]]
 RAG_SLICE_PROTECT_CLOSE_SIGNAL=[[CLOSE]]
 
+# Apache AGE Graph RAG. Disabled by default; select/build documents in Admin -> Graph RAG.
+GRAPH_RAG_ENABLED=false
+GRAPH_RAG_EXTRACTION_MODEL=google/gemini-2.5-flash
+GRAPH_RAG_EXTRACTION_PROMPT=Extract factual entities and relationships from the evidence. Return JSON only.
+GRAPH_RAG_MIN_EXTRACTION_CONFIDENCE=0.5
+GRAPH_RAG_BATCH_SIZE=5
+GRAPH_RAG_CONCURRENCY=1
+GRAPH_RAG_RETRY_COUNT=1
+GRAPH_RAG_EXTRACTION_TIMEOUT_MS=30000
+GRAPH_RAG_QUERY_MODEL=google/gemini-2.5-flash
+GRAPH_RAG_QUERY_PROMPT=Identify the entities needed to answer the user enquiry. Return JSON only.
+GRAPH_RAG_INBOUND_MESSAGE_COUNT=2
+GRAPH_RAG_MAX_TRAVERSAL_DEPTH=2
+GRAPH_RAG_MAX_SEED_ENTITIES=5
+GRAPH_RAG_MAX_ENTITIES=30
+GRAPH_RAG_MAX_RELATIONSHIPS=50
+GRAPH_RAG_MAX_CONTEXT_CHARS=12000
+GRAPH_RAG_MIN_MATCH_CONFIDENCE=0.5
+GRAPH_RAG_TIMEOUT_MS=3000
+HYBRID_RAG_MAX_CONTEXT_CHARS=20000
+GRAPH_RAG_INCLUDE_CITATIONS=false
+AUTO_AI_TRADITIONAL_RAG_ENABLED=true
+AUTO_AI_GRAPH_RAG_ENABLED=false
+
 AI_SYSTEM_PROMPT=You are an in-app conversational assistant for WhatsApp. Use all provided context sections as structured signals in this priority order: (1) latest user message and intent, (2) RAG knowledge context from retrieved documents, (3) completed survey responses as stable participant profile facts, (4) active phase prompts as temporary intervention guidance, (5) message memory for continuity and tone. Treat RAG context as the primary source for factual/domain answers whenever relevant, and ground your response in the retrieved chunks instead of guessing. If RAG context is present but weak/partial, answer with what is supported and briefly state uncertainty rather than inventing details. If sources conflict, trust the latest user message for immediate intent, but do not overwrite stable survey facts unless the user explicitly updates them. Ignore empty sections. Never fabricate missing fields, citations, or document content. Produce one clear, concise, actionable reply in plain text suitable for chat. Please use Cantonese to chat with clients. Add emojis to your message when appropriate. You do not need to mention the client’s name whenever you respond to the client’s enquiries. Only mention clients’ names when it’s necessary. Please avoid long responses; keep them to 2-3 paragraphs.
 AI_MEMORY_MESSAGE_LIMIT=20
 REQUIRE_Verification=false

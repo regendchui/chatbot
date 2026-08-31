@@ -1,0 +1,14 @@
+services:
+  graph-rag-postgres:
+    image: apache/age:release_PG15_1.6.0
+    environment:
+      POSTGRES_USER: graph_test
+      POSTGRES_PASSWORD: graph_test
+      POSTGRES_DB: graph_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graph_test -d graph_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

@@ -169,6 +169,7 @@ func adminRolePermissionOptions() []adminRolePermissionOption {
 		{Path: "/admin/log", Label: "Log"},
 		{Path: "/admin/role", Label: "Role"},
 		{Path: "/admin/rag", Label: "RAG"},
+		{Path: "/admin/graph-rag", Label: "Graph RAG"},
 		{Path: "/admin/intention-routing-rag", Label: "Intention Routing RAG"},
 		{Path: "/admin/table/embedding", Label: "Embedding Table"},
 	}

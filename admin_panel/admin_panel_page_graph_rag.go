@@ -1,0 +1,235 @@
+package admin_panel
+
+import (
+	"context"
+	"fmt"
+	"html"
+	"net/http"
+	"net/url"
+	"sort"
+	"strings"
+	"time"
+
+	ai "whatsapp-bot/AI"
+	"whatsapp-bot/db"
+	"whatsapp-bot/survey"
+)
+
+func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	indexed, err := db.ListRAGDocuments()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	graphDocuments, graphErr := db.ListGraphRAGDocuments(r.Context())
+	jobs, jobsErr := db.ListGraphRAGJobs(r.Context(), 100)
+	selected := map[string]db.GraphRAGDocument{}
+	for _, document := range graphDocuments {
+		selected[document.DocumentName] = document
+	}
+	names := make([]string, 0, len(indexed))
+	for name := range indexed {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	availability := "Available"
+	if err := db.GraphRAGAvailable(r.Context()); err != nil {
+		availability = "Unavailable: " + err.Error()
+	}
+	projectName := graphRAGProjectName()
+	var b strings.Builder
+	b.WriteString(adminPageHeader("Graph RAG"))
+	b.WriteString(`<h2>Graph RAG</h2>`)
+	b.WriteString(adminNav(r))
+	if msg := strings.TrimSpace(r.URL.Query().Get("msg")); msg != "" {
+		b.WriteString(`<p style="color:#065f46;">` + html.EscapeString(msg) + `</p>`)
+	}
+	b.WriteString(`<p><strong>Apache AGE:</strong> ` + html.EscapeString(availability) + `</p>`)
+	b.WriteString(`<p>Choose existing RAG documents for automatic entity and relationship extraction. Builds run in the background and the previous successful snapshot remains live until replacement succeeds.</p>`)
+	b.WriteString(`<h3>Document ingestion</h3><table border="1" cellpadding="6" cellspacing="0"><tr><th>Document</th><th>Chunks</th><th>Selected</th><th>Status</th><th>Entities</th><th>Relationships</th><th>Last error</th><th>Actions</th></tr>`)
+	for _, name := range names {
+		document, exists := selected[name]
+		b.WriteString(`<tr><td>` + html.EscapeString(name) + `</td><td>` + fmt.Sprint(indexed[name]) + `</td><td>` + fmt.Sprint(exists && document.Selected) + `</td><td>` + html.EscapeString(document.Status) + graphStaleBadge(document.Stale) + `</td><td>` + fmt.Sprint(document.EntityCount) + `</td><td>` + fmt.Sprint(document.RelationshipCount) + `</td><td>` + html.EscapeString(document.LastError) + `</td><td>`)
+		if !exists || !document.Selected {
+			b.WriteString(graphRAGActionForm(r, "/admin/graph-rag/select", name, "Select & build", ""))
+		} else {
+			b.WriteString(graphRAGActionForm(r, "/admin/graph-rag/rebuild", name, "Rebuild", ""))
+			b.WriteString(graphRAGActionForm(r, "/admin/graph-rag/remove", name, "Remove from graph", "Remove this document's graph provenance? The traditional RAG document will remain."))
+		}
+		b.WriteString(`</td></tr>`)
+	}
+	b.WriteString(`</table>`)
+	b.WriteString(`<form method="post" action="/admin/graph-rag/rebuild-stale" style="margin-top:12px;">` + adminCSRFInput(r) + `<button type="submit">Rebuild all stale documents</button></form>`)
+
+	b.WriteString(`<h3>Background jobs</h3>`)
+	if graphErr != nil || jobsErr != nil {
+		b.WriteString(`<p style="color:#b91c1c;">` + html.EscapeString(fmt.Sprint(graphErr, " ", jobsErr)) + `</p>`)
+	} else {
+		b.WriteString(`<table border="1" cellpadding="6" cellspacing="0"><tr><th>ID</th><th>Document</th><th>Status</th><th>Progress</th><th>Entities</th><th>Relationships</th><th>Tokens</th><th>Created</th><th>Error</th></tr>`)
+		for _, job := range jobs {
+			b.WriteString(fmt.Sprintf(`<tr><td>%d</td><td>%s</td><td>%s</td><td>%d/%d</td><td>%d</td><td>%d</td><td>%d + %d</td><td>%s</td><td>%s</td></tr>`, job.ID, html.EscapeString(job.DocumentName), html.EscapeString(job.Status), job.ProcessedChunks, job.TotalChunks, job.EntityCount, job.RelationshipCount, job.PromptTokens, job.CompletionTokens, html.EscapeString(job.CreatedAt.Format(time.RFC3339)), html.EscapeString(job.LastError)))
+		}
+		b.WriteString(`</table>`)
+	}
+
+	b.WriteString(`<h3>Natural-language search and graph preview</h3><p>The test uses the current general Graph RAG retrieval settings. It shows resolved seeds, traversed evidence, provenance, latency diagnostics, and the exact context supplied to generation.</p>`)
+	b.WriteString(`<form id="graph-test-form">` + adminCSRFInput(r) + `<textarea name="enquiry" rows="4" cols="100" maxlength="10000" required placeholder="Ask a question about the selected graph documents"></textarea><div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;"><label>Entity type filter <input id="graph-filter-entity" placeholder="Clinic"></label><label>Relationship filter <input id="graph-filter-relation" placeholder="LOCATED_IN"></label><label>Document filter <input id="graph-filter-document" placeholder="location.pdf"></label><label>Minimum confidence <input id="graph-filter-confidence" type="number" min="0" max="1" step="0.01" value="0"></label></div><button type="submit">Run Graph RAG test</button></form>`)
+	b.WriteString(`<pre id="graph-test-debug" style="white-space:pre-wrap;background:#f8fafc;padding:10px;"></pre><div id="graph-preview" style="overflow:auto;border:1px solid #cbd5e1;min-height:260px;"></div><h4>Evidence table</h4><div id="graph-evidence"></div><h4>Generated graph context</h4><pre id="graph-context" style="white-space:pre-wrap;background:#f8fafc;padding:10px;"></pre>`)
+	b.WriteString(graphRAGPreviewScript())
+
+	b.WriteString(`<h3>Delete entire graph</h3><p>This deletes Graph RAG snapshots and provenance only. Traditional RAG documents remain.</p><form method="post" action="/admin/graph-rag/delete-all" onsubmit="return confirm('Delete the entire Graph RAG dataset?');">` + adminCSRFInput(r) + `<label>Type project name <strong>` + html.EscapeString(projectName) + `</strong><br><input name="project_name" required></label> <button type="submit" style="background:#b91c1c;color:white;">Delete entire graph</button></form>`)
+	b.WriteString(adminPageFooter())
+	adminWriteHTML(w, b.String())
+}
+
+func adminGraphRAGSelectHandler(w http.ResponseWriter, r *http.Request) {
+	adminGraphRAGDocumentAction(w, r, func(ctx context.Context, name string) error {
+		return db.SelectGraphRAGDocument(ctx, name, ai.GraphRAGExtractionSettingsHash())
+	}, "Document selected and build queued.")
+}
+
+func adminGraphRAGRebuildHandler(w http.ResponseWriter, r *http.Request) {
+	adminGraphRAGDocumentAction(w, r, func(ctx context.Context, name string) error {
+		return db.QueueGraphRAGRebuild(ctx, name, ai.GraphRAGExtractionSettingsHash())
+	}, "Graph rebuild queued.")
+}
+
+func adminGraphRAGRemoveHandler(w http.ResponseWriter, r *http.Request) {
+	adminGraphRAGDocumentAction(w, r, db.RemoveGraphRAGDocument, "Document provenance removed from Graph RAG.")
+}
+
+func adminGraphRAGDocumentAction(w http.ResponseWriter, r *http.Request, action func(context.Context, string) error, success string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !adminRequireCSRF(w, r) {
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("document_name"))
+	if name == "" {
+		graphRAGRedirect(w, r, "Document name is required.")
+		return
+	}
+	if err := action(r.Context(), name); err != nil {
+		graphRAGRedirect(w, r, "Action failed: "+err.Error())
+		return
+	}
+	adminRecordConfigUpdateHistory(r, "graph_rag_document_action", success+" Document: "+name)
+	graphRAGRedirect(w, r, success)
+}
+
+func adminGraphRAGRebuildStaleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !adminRequireCSRF(w, r) {
+		return
+	}
+	count, err := db.QueueAllStaleGraphRAGDocuments(r.Context(), ai.GraphRAGExtractionSettingsHash())
+	if err != nil {
+		graphRAGRedirect(w, r, "Queue failed: "+err.Error())
+		return
+	}
+	adminRecordConfigUpdateHistory(r, "graph_rag_rebuild_stale", fmt.Sprintf("Queued %d stale Graph RAG documents", count))
+	graphRAGRedirect(w, r, fmt.Sprintf("Queued %d stale document(s).", count))
+}
+
+func adminGraphRAGDeleteAllHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !adminRequireCSRF(w, r) {
+		return
+	}
+	if strings.TrimSpace(r.FormValue("project_name")) != graphRAGProjectName() {
+		graphRAGRedirect(w, r, "Project name confirmation did not match.")
+		return
+	}
+	if err := db.DeleteEntireGraphRAG(r.Context()); err != nil {
+		graphRAGRedirect(w, r, "Delete failed: "+err.Error())
+		return
+	}
+	adminRecordConfigUpdateHistory(r, "graph_rag_delete_all", "Deleted the complete Graph RAG dataset")
+	graphRAGRedirect(w, r, "Entire Graph RAG dataset deleted.")
+}
+
+func adminGraphRAGTestHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		adminWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"ok": false, "error": "method not allowed"})
+		return
+	}
+	if !adminRequireCSRF(w, r) {
+		return
+	}
+	enquiry := strings.TrimSpace(r.FormValue("enquiry"))
+	if enquiry == "" || len([]rune(enquiry)) > 10000 {
+		adminWriteJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Enquiry must contain 1 through 10000 characters."})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
+	defer cancel()
+	result, err := ai.RetrieveGraphRAGWithDebug(ctx, enquiry, nil, nil, ai.CurrentGraphRAGRetrievalSettings())
+	if err != nil {
+		adminWriteJSON(w, http.StatusBadGateway, map[string]any{"ok": false, "error": err.Error(), "result": result})
+		return
+	}
+	adminRecordConfigUpdateHistory(r, "graph_rag_test", "Ran an authenticated Graph RAG retrieval test")
+	adminWriteJSON(w, http.StatusOK, map[string]any{"ok": true, "result": result})
+}
+
+func graphRAGProjectName() string {
+	if config := survey.GlobalSurveyConfig(); config != nil && strings.TrimSpace(config.Project.Name) != "" {
+		return strings.TrimSpace(config.Project.Name)
+	}
+	return "WhatsApp"
+}
+
+func graphRAGRedirect(w http.ResponseWriter, r *http.Request, message string) {
+	http.Redirect(w, r, "/admin/graph-rag?msg="+url.QueryEscape(message), http.StatusSeeOther)
+}
+
+func graphStaleBadge(stale bool) string {
+	if stale {
+		return ` <strong style="color:#b45309;">(rebuild required)</strong>`
+	}
+	return ""
+}
+
+func graphRAGActionForm(r *http.Request, action, documentName, label, confirm string) string {
+	confirmAttribute := ""
+	if confirm != "" {
+		confirmAttribute = ` onsubmit="return confirm('` + html.EscapeString(confirm) + `');"`
+	}
+	return `<form method="post" action="` + html.EscapeString(action) + `" style="display:inline;"` + confirmAttribute + `>` + adminCSRFInput(r) + `<input type="hidden" name="document_name" value="` + html.EscapeString(documentName) + `"><button type="submit">` + html.EscapeString(label) + `</button></form> `
+}
+
+func graphRAGPreviewScript() string {
+	return `<script>
+document.getElementById('graph-test-form').addEventListener('submit', async function(event) {
+  event.preventDefault();
+  const response = await fetch('/admin/graph-rag/test', {method:'POST', body:new FormData(event.target)});
+  const payload = await response.json();
+  const result = payload.result || {};
+  document.getElementById('graph-test-debug').textContent = payload.ok ? (result.debug || '') : (payload.error || 'Test failed');
+  document.getElementById('graph-context').textContent = result.context || '';
+  const graph = result.graph || {}; const entityFilter=document.getElementById('graph-filter-entity').value.trim().toLowerCase(),relationFilter=document.getElementById('graph-filter-relation').value.trim().toLowerCase(),documentFilter=document.getElementById('graph-filter-document').value.trim().toLowerCase(),minimumConfidence=Number(document.getElementById('graph-filter-confidence').value||0);
+  const relationships = (graph.relationships || []).filter(rel=>(!entityFilter||String(rel.from_type||'').toLowerCase().includes(entityFilter)||String(rel.to_type||'').toLowerCase().includes(entityFilter))&&(!relationFilter||String(rel.relation_type||'').toLowerCase().includes(relationFilter))&&(!documentFilter||String(rel.document_name||'').toLowerCase().includes(documentFilter))&&Number(rel.confidence||0)>=minimumConfidence);
+  const evidence = document.getElementById('graph-evidence'); evidence.replaceChildren();
+  const table = document.createElement('table'); table.border='1'; table.cellPadding='6';
+  const head = document.createElement('tr'); ['From','From type','Relationship','To','To type','Confidence','Source','Depth'].forEach(v=>{const th=document.createElement('th');th.textContent=v;head.appendChild(th)}); table.appendChild(head);
+  relationships.forEach(rel=>{const tr=document.createElement('tr'); [rel.from,rel.from_type,rel.relation_type,rel.to,rel.to_type,Number(rel.confidence||0).toFixed(3),(rel.document_name||'')+', chunk '+rel.chunk_index,rel.depth].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td)});table.appendChild(tr)}); evidence.appendChild(table);
+  const preview=document.getElementById('graph-preview'); preview.replaceChildren();
+  const names=[...new Set(relationships.flatMap(rel=>[rel.from,rel.to]))]; const width=Math.max(700,names.length*130), height=300; const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('width',width);svg.setAttribute('height',height);
+  const pos={}; names.forEach((name,i)=>{pos[name]={x:70+i*(width-140)/Math.max(1,names.length-1),y:80+(i%2)*130}});
+  relationships.forEach(rel=>{const a=pos[rel.from],b=pos[rel.to];if(!a||!b)return;const line=document.createElementNS(svg.namespaceURI,'line');line.setAttribute('x1',a.x);line.setAttribute('y1',a.y);line.setAttribute('x2',b.x);line.setAttribute('y2',b.y);line.setAttribute('stroke','#64748b');svg.appendChild(line)});
+  names.forEach(name=>{const p=pos[name];const circle=document.createElementNS(svg.namespaceURI,'circle');circle.setAttribute('cx',p.x);circle.setAttribute('cy',p.y);circle.setAttribute('r','28');circle.setAttribute('fill','#dbeafe');circle.setAttribute('stroke','#2563eb');svg.appendChild(circle);const text=document.createElementNS(svg.namespaceURI,'text');text.setAttribute('x',p.x);text.setAttribute('y',p.y+45);text.setAttribute('text-anchor','middle');text.textContent=name;svg.appendChild(text)}); preview.appendChild(svg);
+});
+</script>`
+}

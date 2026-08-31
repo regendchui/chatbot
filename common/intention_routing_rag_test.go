@@ -1,6 +1,9 @@
 package common
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func validRoutingRAGGraph() IntentionRoutingRAGGraph {
 	graph := DefaultIntentionRoutingRAGGraph("google/gemini-2.5-flash")
@@ -67,6 +70,90 @@ func TestValidateIntentionRoutingRAGGraphRejectsInvalidMessageCounts(t *testing.
 	issues := ValidateIntentionRoutingRAGGraph(graph, map[string]struct{}{"location.pdf": {}})
 	if len(issues) < 2 {
 		t.Fatalf("expected inbound message count issues, got %#v", issues)
+	}
+}
+
+func TestNormalizeIntentionRoutingRAGGraphUpgradesVersionOneWithoutEnablingGraphRAG(t *testing.T) {
+	graph := validRoutingRAGGraph()
+	graph.SchemaVersion = 1
+
+	normalized, err := NormalizeIntentionRoutingRAGGraph(graph)
+	if err != nil {
+		t.Fatalf("normalize legacy workflow: %v", err)
+	}
+	if normalized.SchemaVersion != IntentionRoutingRAGSchemaVersion {
+		t.Fatalf("schema version=%d want %d", normalized.SchemaVersion, IntentionRoutingRAGSchemaVersion)
+	}
+	if normalized.Nodes[2].RAG.GraphRAG.Mode != GraphRAGModeDisabled {
+		t.Fatalf("legacy workflow unexpectedly enabled graph RAG: %#v", normalized.Nodes[2].RAG.GraphRAG)
+	}
+}
+
+func TestIntentionRoutingRAGVersionTwoJSONKeepsGraphOverride(t *testing.T) {
+	graph := validRoutingRAGGraph()
+	graph.Nodes[2].RAG.GraphRAG = IntentionRoutingGraphRAG{
+		Mode:      GraphRAGModeOverride,
+		Documents: []string{"location.pdf"},
+		Settings:  DefaultGraphRAGRetrievalSettings(),
+	}
+	raw, err := json.Marshal(graph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded IntentionRoutingRAGGraph
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Nodes[2].RAG.GraphRAG.Mode != GraphRAGModeOverride {
+		t.Fatalf("graph override lost after JSON round trip: %s", raw)
+	}
+}
+
+func TestValidateIntentionRoutingRAGGraphAcceptsGraphOnlyRAGBlock(t *testing.T) {
+	graph := validRoutingRAGGraph()
+	graph.Nodes[2].RAG.Documents = nil
+	graph.Nodes[2].RAG.GraphRAG = IntentionRoutingGraphRAG{
+		Mode:      GraphRAGModeOverride,
+		Documents: []string{"location.pdf"},
+		Settings:  DefaultGraphRAGRetrievalSettings(),
+	}
+	if issues := ValidateIntentionRoutingRAGGraph(graph, map[string]struct{}{"location.pdf": {}}); len(issues) != 0 {
+		t.Fatalf("expected graph-only RAG block to be valid, got %#v", issues)
+	}
+}
+
+func TestValidateIntentionRoutingRAGGraphRejectsUnsafeGraphLimits(t *testing.T) {
+	graph := validRoutingRAGGraph()
+	graph.Nodes[2].RAG.GraphRAG = IntentionRoutingGraphRAG{
+		Mode:      GraphRAGModeOverride,
+		Documents: []string{"location.pdf"},
+		Settings: GraphRAGRetrievalSettings{
+			InboundMessageCount: 2,
+			MaxTraversalDepth:   99,
+			MaxSeedEntities:     5,
+			MaxEntities:         30,
+			MaxRelationships:    50,
+			MaxContextChars:     12000,
+			MinMatchConfidence:  0.5,
+			TimeoutMS:           3000,
+		},
+	}
+	issues := ValidateIntentionRoutingRAGGraph(graph, map[string]struct{}{"location.pdf": {}})
+	if !hasValidationMessage(issues, "traversal depth") {
+		t.Fatalf("expected traversal depth validation issue, got %#v", issues)
+	}
+}
+
+func TestValidateIntentionRoutingRAGGraphRequiresActiveGraphDocumentForOverride(t *testing.T) {
+	graph := validRoutingRAGGraph()
+	graph.Nodes[2].RAG.GraphRAG = IntentionRoutingGraphRAG{
+		Mode:      GraphRAGModeOverride,
+		Documents: []string{"location.pdf"},
+		Settings:  DefaultGraphRAGRetrievalSettings(),
+	}
+	issues := ValidateIntentionRoutingRAGGraph(graph, map[string]struct{}{"location.pdf": {}}, map[string]struct{}{})
+	if !hasValidationMessage(issues, "Graph RAG page") {
+		t.Fatalf("expected inactive graph-document issue, got %#v", issues)
 	}
 }
 

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -48,6 +49,11 @@ func InitDB() {
 	}
 	if err := EnsureIntentionRoutingRAGWorkflowTableExists(); err != nil {
 		panic(fmt.Errorf("ensure intention routing RAG workflow table: %w", err))
+	}
+	if err := EnsureGraphRAGInfrastructure(); err != nil {
+		// Graph RAG is optional and disabled by default. Keep the existing bot
+		// available on stock PostgreSQL while surfacing the AGE deployment issue.
+		log.Printf("Graph RAG infrastructure unavailable: %v", err)
 	}
 	if err := EnsureLoginHistoryTableExists(); err != nil {
 		panic(fmt.Errorf("ensure login_history table: %w", err))

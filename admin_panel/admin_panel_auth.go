@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"os"
@@ -183,6 +184,14 @@ func adminRequireCSRF(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+func adminCSRFInput(r *http.Request) string {
+	session, ok := adminSessionFromRequest(r)
+	if !ok || strings.TrimSpace(session.CSRFToken) == "" {
+		return ""
+	}
+	return `<input type="hidden" name="csrf_token" value="` + html.EscapeString(session.CSRFToken) + `">`
+}
+
 func adminCurrentSession(r *http.Request) (adminSession, bool) {
 	cookie, err := r.Cookie(adminSessionCookieName)
 	if err != nil || strings.TrimSpace(cookie.Value) == "" {
@@ -285,6 +294,8 @@ func adminPermissionBasePath(path string) string {
 		return "/admin/role"
 	case strings.HasPrefix(p, "/admin/rag"):
 		return "/admin/rag"
+	case strings.HasPrefix(p, "/admin/graph-rag"):
+		return "/admin/graph-rag"
 	case strings.HasPrefix(p, "/admin/intention-routing-rag"):
 		return "/admin/intention-routing-rag"
 	case strings.HasPrefix(p, "/admin/table/embedding"):
