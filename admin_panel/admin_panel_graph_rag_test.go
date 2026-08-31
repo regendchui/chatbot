@@ -105,6 +105,24 @@ func TestGraphRAGDocumentPreviewButtonEscapesDocumentName(t *testing.T) {
 	}
 }
 
+func TestGraphRAGCombinedConceptLimitsHaveNoMaximum(t *testing.T) {
+	markup := graphRAGPreviewControls() + graphRAGPreviewScript()
+	for _, forbidden := range []string{`max="60"`, `max="120"`} {
+		if strings.Contains(markup, forbidden) {
+			t.Errorf("combined concept control still contains upper limit %q", forbidden)
+		}
+	}
+	for _, want := range []string{
+		`graphLimitValue('graph-concept-node-limit',20,5)`,
+		`graphLimitValue('graph-concept-relationship-limit',30,5)`,
+		`forceIterations`,
+	} {
+		if !strings.Contains(markup, want) {
+			t.Errorf("unlimited combined concept preview missing %q", want)
+		}
+	}
+}
+
 func TestGraphRAGDeleteConfirmationRequiresLiteralPhrase(t *testing.T) {
 	for _, value := range []string{"confirm delete", " confirm delete "} {
 		if !graphRAGDeleteConfirmationMatches(value) {

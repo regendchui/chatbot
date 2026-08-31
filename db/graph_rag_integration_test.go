@@ -83,7 +83,7 @@ func TestGraphRAGAGEIntegration(t *testing.T) {
 	if len(preview.Entities) != 2 || len(preview.Relationships) != 1 || preview.GraphRevision == "" {
 		t.Fatalf("document graph preview=%#v", preview)
 	}
-	completePreview, err := PreviewCompleteGraphRAG(ctx, 100, 100)
+	completePreview, err := PreviewCompleteGraphRAG(ctx, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

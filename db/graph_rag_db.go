@@ -30,6 +30,8 @@ const graphRAGResolveSeedCypher = `UNWIND $terms AS term MATCH (e:Entity) WHERE 
 
 const graphRAGMinimumSeedMatchScore = 0.35
 
+const graphRAGUnlimitedPreviewLimit = 2147483647
+
 type graphRAGSeedCandidate struct {
 	CanonicalKey string
 	AliasKeys    []string
@@ -765,16 +767,10 @@ func PreviewCompleteGraphRAG(ctx context.Context, maxEntities, maxRelationships 
 
 func previewGraphRAGSnapshots(ctx context.Context, snapshotIDs []string, maxEntities, maxRelationships int) (GraphRAGQueryResult, error) {
 	if maxEntities < 1 {
-		maxEntities = 200
-	}
-	if maxEntities > 500 {
-		maxEntities = 500
+		maxEntities = graphRAGUnlimitedPreviewLimit
 	}
 	if maxRelationships < 1 {
-		maxRelationships = 400
-	}
-	if maxRelationships > 1000 {
-		maxRelationships = 1000
+		maxRelationships = graphRAGUnlimitedPreviewLimit
 	}
 	result := GraphRAGQueryResult{GraphRevision: strings.Join(snapshotIDs, ",")}
 	conn, err := DB.Acquire(ctx)

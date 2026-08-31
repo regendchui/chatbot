@@ -192,8 +192,8 @@ It provides:
   showing their shared canonical entities in the single project graph;
 - a concept-map summary for that combined preview, ranking entities by
   connectivity, confidence, and cross-document support while retaining entity
-  type diversity; administrators can show 5–60 key concepts and 5–120
-  relationships (defaults: 20 and 30);
+  type diversity; administrators can show any number of key concepts and
+  relationships above the minimum of 5 (defaults: 20 and 30);
 - upper-layer-first selection: 70% of available concept slots are filled by
   directed hubs and bridge entities before remaining slots add category
   diversity, so leaf details do not displace the principal concepts;
@@ -211,9 +211,12 @@ It provides:
   of the current zoom and pan position; and
 - confirmed full-graph deletion without deleting traditional RAG documents.
 
-Each document or combined preview is bounded to 250 entities and 500
-relationships per request so a large ingestion cannot freeze the admin page.
-Counts in the document table continue to show the full snapshot size. Longer entity names
+Each individual document preview is bounded to 250 entities and 500
+relationships per request. The combined concept preview loads the complete
+active selected-document graph, while its controls decide how many ranked
+concepts and relationships are drawn. Large maps reduce force-layout iterations
+automatically to keep rendering responsive. Counts in the document table
+continue to show the full snapshot size. Longer entity names
 are wrapped and visually shortened inside node cards; the complete name and
 type remain available in the SVG tooltip and evidence table.
 
