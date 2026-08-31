@@ -32,6 +32,8 @@ The pinned AGE 1.6 Cypher dialect does not support `MERGE ... ON CREATE SET` or
 `ON MATCH SET`. Snapshot upserts therefore use basic `MERGE` followed by `SET`,
 which is supported by the PG15/AGE 1.6 deployment. Orphan cleanup similarly
 uses `OPTIONAL MATCH ... IS NULL` instead of unsupported negated patterns.
+Entity alias resolution uses `UNWIND` and the `IN` operator because AGE 1.6
+does not parse Neo4j-style `any(... WHERE ...)` list predicates.
 
 ## Graph model
 

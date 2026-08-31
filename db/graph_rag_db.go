@@ -24,6 +24,10 @@ const graphRAGRelationshipCreateCypher = `MERGE (a:Entity {canonical_key: $from_
 
 const graphRAGDeleteOrphanEntitiesCypher = `MATCH (e:Entity) OPTIONAL MATCH (e)<-[m:MENTIONS]-() OPTIONAL MATCH (e)-[r:RELATED_TO]-() WITH e,m,r WHERE m IS NULL AND r IS NULL DELETE e RETURN count(e)`
 
+const graphRAGResolveEntityCypher = `UNWIND $keys AS key MATCH (e:Entity) WHERE e.canonical_key = key OR key IN e.alias_keys RETURN e.canonical_key,e.aliases,e.alias_keys ORDER BY e.canonical_key LIMIT 1`
+
+const graphRAGResolveSeedCypher = `UNWIND $keys AS key MATCH (e:Entity) WHERE e.canonical_key = key OR key IN e.alias_keys RETURN e.canonical_key LIMIT $limit`
+
 func EnsureGraphRAGInfrastructure() error {
 	metadata := `
 CREATE TABLE IF NOT EXISTS graph_rag_documents (
@@ -507,7 +511,7 @@ func resolveGraphEntityIdentity(ctx context.Context, runner graphRAGQuerier, ent
 	if len(aliasKeys) == 0 {
 		return "", nil, nil, nil
 	}
-	rows, err := queryAGECypher(ctx, runner, `MATCH (e:Entity) WHERE e.canonical_key IN $keys OR any(alias IN e.alias_keys WHERE alias IN $keys) RETURN e.canonical_key,e.aliases,e.alias_keys ORDER BY e.canonical_key LIMIT 1`, map[string]any{"keys": aliasKeys}, 3)
+	rows, err := queryAGECypher(ctx, runner, graphRAGResolveEntityCypher, map[string]any{"keys": aliasKeys}, 3)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -639,7 +643,7 @@ func QueryGraphRAG(ctx context.Context, seeds []string, documentNames []string, 
 	if err := configureAGEConnection(ctx, conn); err != nil {
 		return result, err
 	}
-	resolvedRows, err := queryAGECypher(ctx, conn, `MATCH (e:Entity) WHERE e.canonical_key IN $keys OR any(alias IN e.alias_keys WHERE alias IN $keys) RETURN e.canonical_key LIMIT $limit`, map[string]any{"keys": seedKeys, "limit": settings.MaxSeedEntities}, 1)
+	resolvedRows, err := queryAGECypher(ctx, conn, graphRAGResolveSeedCypher, map[string]any{"keys": seedKeys, "limit": settings.MaxSeedEntities}, 1)
 	if err != nil {
 		return result, err
 	}
