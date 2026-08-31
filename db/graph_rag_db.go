@@ -18,6 +18,12 @@ import (
 
 const graphRAGGraphName = "knowledge_graph"
 
+const graphRAGEntityUpsertCypher = `MATCH (c:Chunk {snapshot_id: $snapshot_id, chunk_index: $chunk_index}) MERGE (e:Entity {canonical_key: $canonical_key}) SET e.canonical_name=$canonical_name, e.entity_type=$entity_type, e.aliases=$aliases, e.alias_keys=$alias_keys, e.confidence=CASE WHEN coalesce(e.confidence,0) < $confidence THEN $confidence ELSE e.confidence END MERGE (c)-[:MENTIONS {snapshot_id: $snapshot_id, document_name: $document_name, chunk_index: $chunk_index}]->(e) RETURN e.canonical_name`
+
+const graphRAGRelationshipCreateCypher = `MERGE (a:Entity {canonical_key: $from_key}) SET a.canonical_name=coalesce(a.canonical_name,$from_name), a.entity_type=coalesce(a.entity_type,'Unknown'), a.aliases=coalesce(a.aliases,[]), a.alias_keys=coalesce(a.alias_keys,[]) MERGE (b:Entity {canonical_key: $to_key}) SET b.canonical_name=coalesce(b.canonical_name,$to_name), b.entity_type=coalesce(b.entity_type,'Unknown'), b.aliases=coalesce(b.aliases,[]), b.alias_keys=coalesce(b.alias_keys,[]) CREATE (a)-[:RELATED_TO {relation_key:$relation_key, from_key:$from_key, to_key:$to_key, relation_type:$relation_type, description:$description, confidence:$confidence, snapshot_id:$snapshot_id, document_name:$document_name, chunk_index:$chunk_index}]->(b) RETURN a.canonical_name`
+
+const graphRAGDeleteOrphanEntitiesCypher = `MATCH (e:Entity) OPTIONAL MATCH (e)<-[m:MENTIONS]-() OPTIONAL MATCH (e)-[r:RELATED_TO]-() WITH e,m,r WHERE m IS NULL AND r IS NULL DELETE e RETURN count(e)`
+
 func EnsureGraphRAGInfrastructure() error {
 	metadata := `
 CREATE TABLE IF NOT EXISTS graph_rag_documents (
@@ -430,7 +436,7 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 			params["aliases"] = aliases
 			params["alias_keys"] = aliasKeys
 			params["confidence"] = entity.Confidence
-			if err := execAGECypher(ctx, tx, `MATCH (c:Chunk {snapshot_id: $snapshot_id, chunk_index: $chunk_index}) MERGE (e:Entity {canonical_key: $canonical_key}) ON CREATE SET e.canonical_name=$canonical_name, e.entity_type=$entity_type SET e.aliases=$aliases, e.alias_keys=$alias_keys, e.confidence=CASE WHEN coalesce(e.confidence,0) < $confidence THEN $confidence ELSE e.confidence END MERGE (c)-[:MENTIONS {snapshot_id: $snapshot_id, document_name: $document_name, chunk_index: $chunk_index}]->(e) RETURN e.canonical_name`, params); err != nil {
+			if err := execAGECypher(ctx, tx, graphRAGEntityUpsertCypher, params); err != nil {
 				return err
 			}
 		}
@@ -457,7 +463,7 @@ func PersistAndActivateGraphRAGSnapshot(ctx context.Context, job GraphRAGJob, co
 			params["relation_type"] = cleanGraphDBText(relationship.RelationType, 120)
 			params["description"] = cleanGraphDBText(relationship.Description, 2000)
 			params["confidence"] = relationship.Confidence
-			if err := execAGECypher(ctx, tx, `MERGE (a:Entity {canonical_key: $from_key}) ON CREATE SET a.canonical_name=$from_name, a.entity_type='Unknown', a.aliases=[], a.alias_keys=[] MERGE (b:Entity {canonical_key: $to_key}) ON CREATE SET b.canonical_name=$to_name, b.entity_type='Unknown', b.aliases=[], b.alias_keys=[] CREATE (a)-[:RELATED_TO {relation_key:$relation_key, from_key:$from_key, to_key:$to_key, relation_type:$relation_type, description:$description, confidence:$confidence, snapshot_id:$snapshot_id, document_name:$document_name, chunk_index:$chunk_index}]->(b) RETURN a.canonical_name`, params); err != nil {
+			if err := execAGECypher(ctx, tx, graphRAGRelationshipCreateCypher, params); err != nil {
 				return err
 			}
 			relationshipCount++
@@ -539,7 +545,7 @@ func DeleteGraphRAGSnapshot(ctx context.Context, snapshotID string) error {
 	if err := execAGECypher(ctx, conn, `MATCH (n) WHERE n.snapshot_id=$snapshot_id DETACH DELETE n RETURN count(n)`, params); err != nil {
 		return err
 	}
-	if err := execAGECypher(ctx, conn, `MATCH (e:Entity) WHERE NOT (e)<-[:MENTIONS]-() AND NOT (e)-[:RELATED_TO]-() DELETE e RETURN count(e)`, map[string]any{}); err != nil {
+	if err := execAGECypher(ctx, conn, graphRAGDeleteOrphanEntitiesCypher, map[string]any{}); err != nil {
 		return err
 	}
 	_, _ = DB.Exec(ctx, `DELETE FROM graph_rag_snapshots WHERE id=$1 AND status<>'active'`, snapshotID)

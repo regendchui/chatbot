@@ -28,6 +28,11 @@ resolve AGE operators used internally by Cypher predicates. Cypher is chosen
 from fixed, bounded application templates; model-generated or user-supplied raw
 Cypher is never executed.
 
+The pinned AGE 1.6 Cypher dialect does not support `MERGE ... ON CREATE SET` or
+`ON MATCH SET`. Snapshot upserts therefore use basic `MERGE` followed by `SET`,
+which is supported by the PG15/AGE 1.6 deployment. Orphan cleanup similarly
+uses `OPTIONAL MATCH ... IS NULL` instead of unsupported negated patterns.
+
 ## Graph model
 
 AGE uses fixed labels and structural relationships:
