@@ -61,6 +61,9 @@ func TestGraphRAGPreviewUIIncludesNavigationAndDocumentLoading(t *testing.T) {
 		`id="graph-complete-preview"`,
 		`/admin/graph-rag/complete-preview`,
 		`maxLines`,
+		`graphSelectImportantSubgraph`,
+		`graphRenderConceptMap`,
+		`conceptMode`,
 		`pointerdown`,
 		`wheel`,
 	} {

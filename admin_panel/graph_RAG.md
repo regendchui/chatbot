@@ -190,6 +190,9 @@ It provides:
   including entities that do not have extracted relationships;
 - a combined preview of the active snapshots from every selected document,
   showing their shared canonical entities in the single project graph;
+- a concept-map summary for that combined preview, ranking entities by
+  connectivity, confidence, and cross-document support while retaining entity
+  type diversity (up to 30 concepts and 45 important relationships);
 - interactive SVG query and document previews with zoom in/out, fit-to-view,
   drag panning, multi-line bounded card labels, relationship tooltips, and an
   accessible evidence table; and
