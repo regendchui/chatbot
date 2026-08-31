@@ -197,6 +197,9 @@ It provides:
 - upper-layer-first selection: 70% of available concept slots are filled by
   directed hubs and bridge entities before remaining slots add category
   diversity, so leaf details do not displace the principal concepts;
+- per-view category checkboxes with Show all/Hide all actions; hidden categories
+  and their relationships are removed before importance ranking, so their key
+  concept slots are refilled from the remaining visible categories;
 - collision-free category colors generated from the visible entity-type set,
   with a dedicated legend band separated from the concept-map layout;
 - a reserved footer band that anchors the displayed/total count summary at the
