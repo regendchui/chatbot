@@ -184,6 +184,7 @@ func DeleteDocumentFromRAG(documentName string) (int64, error) {
 	}
 	if graphErr := db.RemoveGraphRAGDocument(context.Background(), documentName); graphErr != nil {
 		log.Printf("Graph RAG deletion hook for %q failed: %v", strings.TrimSpace(documentName), graphErr)
+		return deleted, fmt.Errorf("traditional RAG document deleted, but Graph RAG provenance removal failed and must be retried: %w", graphErr)
 	}
 	return deleted, nil
 }

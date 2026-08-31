@@ -61,8 +61,8 @@ Only existing documents from **Admin → RAG** can be selected.
 6. Metadata atomically activates the successful snapshot.
 7. The previous snapshot is removed after activation.
 
-Job claims are leased through their progress timestamp. A worker interrupted
-for more than five minutes is returned to the queue, so a restart cannot leave
+Job claims are leased through a heartbeat refreshed independently every minute.
+A worker interrupted for more than five minutes is returned to the queue, so a restart cannot leave
 a document permanently in `building`. Per-document advisory locking prevents
 concurrent requests from creating duplicate queued builds.
 
@@ -72,7 +72,8 @@ stale, and its previous successful snapshot continues serving queries.
 Reindexing a selected traditional RAG document automatically queues a rebuild.
 Deleting a traditional document removes its graph provenance. Shared entities
 are deleted only when no remaining `MENTIONS` or `RELATED_TO` evidence supports
-them. Changing extraction settings marks selected documents `rebuild required`
+them. A provenance-removal failure is returned to the admin as a retryable
+error instead of reporting complete deletion. Changing extraction settings marks selected documents `rebuild required`
 without automatically spending model tokens.
 
 Each queued job records an extraction-settings hash and uses one frozen settings

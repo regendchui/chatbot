@@ -307,6 +307,17 @@ func UpdateGraphRAGJobProgress(ctx context.Context, jobID int64, processed, tota
 	return err
 }
 
+func HeartbeatGraphRAGJob(ctx context.Context, jobID int64) error {
+	command, err := DB.Exec(ctx, `UPDATE graph_rag_jobs SET updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status='running'`, jobID)
+	if err != nil {
+		return fmt.Errorf("heartbeat Graph RAG job: %w", err)
+	}
+	if command.RowsAffected() != 1 {
+		return fmt.Errorf("Graph RAG job lease is no longer active")
+	}
+	return nil
+}
+
 func RecordGraphRAGExtractionAudit(ctx context.Context, jobID int64, chunkIndex int, rawResponse, validationError string, promptTokens, completionTokens int64) error {
 	_, err := DB.Exec(ctx, `INSERT INTO graph_rag_extraction_audit(job_id,chunk_index,raw_response,validation_error,prompt_tokens,completion_tokens) VALUES($1,$2,$3,$4,$5,$6)`, jobID, chunkIndex, cleanGraphDBText(rawResponse, 50000), cleanGraphDBText(validationError, 4000), promptTokens, completionTokens)
 	if err != nil {

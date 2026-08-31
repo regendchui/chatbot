@@ -83,6 +83,15 @@ func TestGraphRAGAGEIntegration(t *testing.T) {
 	if _, err := DB.Exec(ctx, `UPDATE graph_rag_documents SET status='building' WHERE id=$1`, job.DocumentID); err != nil {
 		t.Fatal(err)
 	}
+	if err := HeartbeatGraphRAGJob(ctx, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	if active, err := ClaimNextGraphRAGJob(ctx); err != nil || active != nil {
+		t.Fatalf("active heartbeat job was incorrectly recovered: %#v %v", active, err)
+	}
+	if _, err := DB.Exec(ctx, `UPDATE graph_rag_jobs SET updated_at=CURRENT_TIMESTAMP-INTERVAL '10 minutes' WHERE id=$1`, job.ID); err != nil {
+		t.Fatal(err)
+	}
 	recovered, err := ClaimNextGraphRAGJob(ctx)
 	if err != nil || recovered == nil || recovered.ID != job.ID {
 		t.Fatalf("abandoned job was not recovered: %#v %v", recovered, err)

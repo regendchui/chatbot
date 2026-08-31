@@ -157,7 +157,44 @@ func RunOneGraphRAGJob(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func processGraphRAGJob(ctx context.Context, job db.GraphRAGJob) error {
+func processGraphRAGJob(ctx context.Context, job db.GraphRAGJob) (returnErr error) {
+	workerCtx, cancelWorker := context.WithCancel(ctx)
+	heartbeatDone := make(chan struct{})
+	var heartbeatErr error
+	var heartbeatMu sync.Mutex
+	if err := db.HeartbeatGraphRAGJob(workerCtx, job.ID); err != nil {
+		cancelWorker()
+		return err
+	}
+	go func() {
+		defer close(heartbeatDone)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-ticker.C:
+				if err := db.HeartbeatGraphRAGJob(workerCtx, job.ID); err != nil {
+					heartbeatMu.Lock()
+					heartbeatErr = err
+					heartbeatMu.Unlock()
+					cancelWorker()
+					return
+				}
+			}
+		}
+	}()
+	defer func() {
+		cancelWorker()
+		<-heartbeatDone
+		heartbeatMu.Lock()
+		defer heartbeatMu.Unlock()
+		if returnErr == nil && heartbeatErr != nil {
+			returnErr = heartbeatErr
+		}
+	}()
+	ctx = workerCtx
 	if err := db.GraphRAGAvailable(ctx); err != nil {
 		return err
 	}
