@@ -188,14 +188,16 @@ It provides:
 - resolved evidence, provenance, generated context, and trace details;
 - a read-only preview of every ready document's active ingestion snapshot,
   including entities that do not have extracted relationships;
+- a combined preview of the active snapshots from every selected document,
+  showing their shared canonical entities in the single project graph;
 - interactive SVG query and document previews with zoom in/out, fit-to-view,
-  drag panning, bounded card labels, relationship tooltips, and an accessible
-  evidence table; and
+  drag panning, multi-line bounded card labels, relationship tooltips, and an
+  accessible evidence table; and
 - confirmed full-graph deletion without deleting traditional RAG documents.
 
-The document preview is bounded to 250 entities and 500 relationships per
-request so a large ingestion cannot freeze the admin page. Counts in the
-document table continue to show the full snapshot size. Longer entity names
+Each document or combined preview is bounded to 250 entities and 500
+relationships per request so a large ingestion cannot freeze the admin page.
+Counts in the document table continue to show the full snapshot size. Longer entity names
 are wrapped and visually shortened inside node cards; the complete name and
 type remain available in the SVG tooltip and evidence table.
 

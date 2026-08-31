@@ -83,6 +83,13 @@ func TestGraphRAGAGEIntegration(t *testing.T) {
 	if len(preview.Entities) != 2 || len(preview.Relationships) != 1 || preview.GraphRevision == "" {
 		t.Fatalf("document graph preview=%#v", preview)
 	}
+	completePreview, err := PreviewCompleteGraphRAG(ctx, 100, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(completePreview.Entities) < 2 || len(completePreview.Relationships) < 1 || completePreview.GraphRevision == "" {
+		t.Fatalf("complete graph preview=%#v", completePreview)
+	}
 	fuzzyResult, err := QueryGraphRAG(ctx, []string{"Wong Tai Sin smoking clinic"}, []string{documentName}, settings)
 	if err != nil {
 		t.Fatal(err)

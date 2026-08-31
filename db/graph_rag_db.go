@@ -733,7 +733,50 @@ func PreviewGraphRAGDocument(ctx context.Context, documentName string, maxEntiti
 		}
 		return result, err
 	}
-	result.GraphRevision = snapshotID
+	return previewGraphRAGSnapshots(ctx, []string{snapshotID}, maxEntities, maxRelationships)
+}
+
+// PreviewCompleteGraphRAG returns the combined active graph for every selected
+// document. Active snapshots share Entity vertices in one AGE namespace, so
+// this view exposes cross-document connections as well as document-local ones.
+func PreviewCompleteGraphRAG(ctx context.Context, maxEntities, maxRelationships int) (GraphRAGQueryResult, error) {
+	result := GraphRAGQueryResult{}
+	rows, err := DB.Query(ctx, `SELECT active_snapshot_id FROM graph_rag_documents WHERE selected=TRUE AND active_snapshot_id<>'' ORDER BY document_name`)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
+	snapshotIDs := make([]string, 0)
+	for rows.Next() {
+		var snapshotID string
+		if err := rows.Scan(&snapshotID); err != nil {
+			return result, err
+		}
+		snapshotIDs = append(snapshotIDs, snapshotID)
+	}
+	if err := rows.Err(); err != nil {
+		return result, err
+	}
+	if len(snapshotIDs) == 0 {
+		return result, nil
+	}
+	return previewGraphRAGSnapshots(ctx, snapshotIDs, maxEntities, maxRelationships)
+}
+
+func previewGraphRAGSnapshots(ctx context.Context, snapshotIDs []string, maxEntities, maxRelationships int) (GraphRAGQueryResult, error) {
+	if maxEntities < 1 {
+		maxEntities = 200
+	}
+	if maxEntities > 500 {
+		maxEntities = 500
+	}
+	if maxRelationships < 1 {
+		maxRelationships = 400
+	}
+	if maxRelationships > 1000 {
+		maxRelationships = 1000
+	}
+	result := GraphRAGQueryResult{GraphRevision: strings.Join(snapshotIDs, ",")}
 	conn, err := DB.Acquire(ctx)
 	if err != nil {
 		return result, err
@@ -742,7 +785,7 @@ func PreviewGraphRAGDocument(ctx context.Context, documentName string, maxEntiti
 	if err := configureAGEConnection(ctx, conn); err != nil {
 		return result, err
 	}
-	entityRows, err := queryAGECypher(ctx, conn, `MATCH (:Chunk {snapshot_id:$snapshot_id})-[:MENTIONS]->(e:Entity) RETURN DISTINCT e.canonical_key,e.canonical_name,e.entity_type ORDER BY e.canonical_name LIMIT $limit`, map[string]any{"snapshot_id": snapshotID, "limit": maxEntities}, 3)
+	entityRows, err := queryAGECypher(ctx, conn, `MATCH (c:Chunk)-[:MENTIONS]->(e:Entity) WHERE c.snapshot_id IN $snapshot_ids RETURN DISTINCT e.canonical_key,e.canonical_name,e.entity_type ORDER BY e.canonical_name LIMIT $limit`, map[string]any{"snapshot_ids": snapshotIDs, "limit": maxEntities}, 3)
 	if err != nil {
 		return result, err
 	}
@@ -770,7 +813,7 @@ func PreviewGraphRAGDocument(ctx context.Context, documentName string, maxEntiti
 	if len(entityKeys) == 0 {
 		return result, nil
 	}
-	relationshipRows, err := queryAGECypher(ctx, conn, `MATCH (a:Entity)-[r:RELATED_TO]->(b:Entity) WHERE r.snapshot_id=$snapshot_id AND a.canonical_key IN $entity_keys AND b.canonical_key IN $entity_keys RETURN a.canonical_key,a.canonical_name,a.entity_type,b.canonical_key,b.canonical_name,b.entity_type,r.relation_type,r.description,r.confidence,r.document_name,r.chunk_index ORDER BY r.confidence DESC,r.chunk_index LIMIT $limit`, map[string]any{"snapshot_id": snapshotID, "entity_keys": entityKeys, "limit": maxRelationships}, 11)
+	relationshipRows, err := queryAGECypher(ctx, conn, `MATCH (a:Entity)-[r:RELATED_TO]->(b:Entity) WHERE r.snapshot_id IN $snapshot_ids AND a.canonical_key IN $entity_keys AND b.canonical_key IN $entity_keys RETURN a.canonical_key,a.canonical_name,a.entity_type,b.canonical_key,b.canonical_name,b.entity_type,r.relation_type,r.description,r.confidence,r.document_name,r.chunk_index ORDER BY r.confidence DESC,r.chunk_index LIMIT $limit`, map[string]any{"snapshot_ids": snapshotIDs, "entity_keys": entityKeys, "limit": maxRelationships}, 11)
 	if err != nil {
 		return result, err
 	}

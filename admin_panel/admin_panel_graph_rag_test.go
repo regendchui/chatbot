@@ -51,13 +51,16 @@ func TestGraphRAGTableScrollerIsBoundedAndAccessible(t *testing.T) {
 }
 
 func TestGraphRAGPreviewUIIncludesNavigationAndDocumentLoading(t *testing.T) {
-	markup := graphRAGPreviewControls() + graphRAGPreviewScript()
+	markup := graphRAGCompletePreviewButton() + graphRAGPreviewControls() + graphRAGPreviewScript()
 	for _, want := range []string{
 		`id="graph-zoom-out"`,
 		`id="graph-zoom-in"`,
 		`id="graph-fit"`,
 		`id="graph-zoom-level"`,
 		`/admin/graph-rag/document-preview`,
+		`id="graph-complete-preview"`,
+		`/admin/graph-rag/complete-preview`,
+		`maxLines`,
 		`pointerdown`,
 		`wheel`,
 	} {
