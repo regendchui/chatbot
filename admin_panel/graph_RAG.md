@@ -182,9 +182,14 @@ It provides:
 - read-only SVG neighborhood preview and an accessible evidence table; and
 - confirmed full-graph deletion without deleting traditional RAG documents.
 
+The document-ingestion, background-jobs, and extraction-audit tables each use
+an independent bounded scroll area. This keeps the remaining controls reachable
+when a table has many rows and permits horizontal scrolling on narrow screens.
+
 State-changing endpoints require authentication and CSRF validation. Document
 removal and full deletion create audit/config-history records. Full deletion
-requires the administrator to type the project name.
+requires the administrator to type the literal phrase `confirm delete`; the
+project name is not displayed or accepted as confirmation.
 
 ## Deployment
 

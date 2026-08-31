@@ -13,8 +13,9 @@ import (
 
 	ai "whatsapp-bot/AI"
 	"whatsapp-bot/db"
-	"whatsapp-bot/survey"
 )
+
+const graphRAGDeleteConfirmation = "confirm delete"
 
 func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -42,7 +43,6 @@ func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
 	if err := db.GraphRAGAvailable(r.Context()); err != nil {
 		availability = "Unavailable: " + err.Error()
 	}
-	projectName := graphRAGProjectName()
 	var b strings.Builder
 	b.WriteString(adminPageHeader("Graph RAG"))
 	b.WriteString(`<h2>Graph RAG</h2>`)
@@ -52,7 +52,9 @@ func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	b.WriteString(`<p><strong>Apache AGE:</strong> ` + html.EscapeString(availability) + `</p>`)
 	b.WriteString(`<p>Choose existing RAG documents for automatic entity and relationship extraction. Builds run in the background and the previous successful snapshot remains live until replacement succeeds.</p>`)
-	b.WriteString(`<h3>Document ingestion</h3><table border="1" cellpadding="6" cellspacing="0"><tr><th>Document</th><th>Chunks</th><th>Selected</th><th>Status</th><th>Entities</th><th>Relationships</th><th>Last error</th><th>Actions</th></tr>`)
+	b.WriteString(`<h3>Document ingestion</h3>`)
+	b.WriteString(graphRAGTableStart("Document ingestion table", 1000))
+	b.WriteString(`<tr><th>Document</th><th>Chunks</th><th>Selected</th><th>Status</th><th>Entities</th><th>Relationships</th><th>Last error</th><th>Actions</th></tr>`)
 	for _, name := range names {
 		document, exists := selected[name]
 		b.WriteString(`<tr><td>` + html.EscapeString(name) + `</td><td>` + fmt.Sprint(indexed[name]) + `</td><td>` + fmt.Sprint(exists && document.Selected) + `</td><td>` + html.EscapeString(document.Status) + graphStaleBadge(document.Stale) + `</td><td>` + fmt.Sprint(document.EntityCount) + `</td><td>` + fmt.Sprint(document.RelationshipCount) + `</td><td>` + html.EscapeString(document.LastError) + `</td><td>`)
@@ -64,28 +66,30 @@ func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		b.WriteString(`</td></tr>`)
 	}
-	b.WriteString(`</table>`)
+	b.WriteString(`</table></div>`)
 	b.WriteString(`<form method="post" action="/admin/graph-rag/rebuild-stale" style="margin-top:12px;">` + adminCSRFInput(r) + `<button type="submit">Rebuild all stale documents</button></form>`)
 
 	b.WriteString(`<h3>Background jobs</h3>`)
 	if graphErr != nil || jobsErr != nil {
 		b.WriteString(`<p style="color:#b91c1c;">` + html.EscapeString(fmt.Sprint(graphErr, " ", jobsErr)) + `</p>`)
 	} else {
-		b.WriteString(`<table border="1" cellpadding="6" cellspacing="0"><tr><th>ID</th><th>Document</th><th>Status</th><th>Progress</th><th>Entities</th><th>Relationships</th><th>Tokens</th><th>Created</th><th>Started</th><th>Finished</th><th>Error</th></tr>`)
+		b.WriteString(graphRAGTableStart("Background jobs table", 1280))
+		b.WriteString(`<tr><th>ID</th><th>Document</th><th>Status</th><th>Progress</th><th>Entities</th><th>Relationships</th><th>Tokens</th><th>Created</th><th>Started</th><th>Finished</th><th>Error</th></tr>`)
 		for _, job := range jobs {
 			b.WriteString(fmt.Sprintf(`<tr><td>%d</td><td>%s</td><td>%s</td><td>%d/%d</td><td>%d</td><td>%d</td><td>%d + %d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>`, job.ID, html.EscapeString(job.DocumentName), html.EscapeString(job.Status), job.ProcessedChunks, job.TotalChunks, job.EntityCount, job.RelationshipCount, job.PromptTokens, job.CompletionTokens, html.EscapeString(job.CreatedAt.Format(time.RFC3339)), graphOptionalTime(job.StartedAt), graphOptionalTime(job.FinishedAt), html.EscapeString(job.LastError)))
 		}
-		b.WriteString(`</table>`)
+		b.WriteString(`</table></div>`)
 	}
 	b.WriteString(`<h3>Extraction audit</h3><p>Authenticated operational trace of provider output, validation errors, and token use. Output is truncated for display.</p>`)
 	if auditsErr != nil {
 		b.WriteString(`<p style="color:#b91c1c;">` + html.EscapeString(auditsErr.Error()) + `</p>`)
 	} else {
-		b.WriteString(`<table border="1" cellpadding="6" cellspacing="0"><tr><th>ID</th><th>Job</th><th>Chunk</th><th>Tokens</th><th>Created</th><th>Validation error</th><th>Provider output</th></tr>`)
+		b.WriteString(graphRAGTableStart("Extraction audit table", 1000))
+		b.WriteString(`<tr><th>ID</th><th>Job</th><th>Chunk</th><th>Tokens</th><th>Created</th><th>Validation error</th><th>Provider output</th></tr>`)
 		for _, audit := range audits {
 			b.WriteString(fmt.Sprintf(`<tr><td>%d</td><td>%d</td><td>%d</td><td>%d + %d</td><td>%s</td><td><pre>%s</pre></td><td><details><summary>View</summary><pre>%s</pre></details></td></tr>`, audit.ID, audit.JobID, audit.ChunkIndex, audit.PromptTokens, audit.CompletionTokens, html.EscapeString(audit.CreatedAt.Format(time.RFC3339)), html.EscapeString(graphDisplayText(audit.ValidationError, 2000)), html.EscapeString(graphDisplayText(audit.RawResponse, 4000))))
 		}
-		b.WriteString(`</table>`)
+		b.WriteString(`</table></div>`)
 	}
 
 	b.WriteString(`<h3>Natural-language search and graph preview</h3><p>The test uses the current general Graph RAG retrieval settings. It shows resolved seeds, traversed evidence, provenance, latency diagnostics, and the exact context supplied to generation.</p>`)
@@ -93,7 +97,7 @@ func adminGraphRAGHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<pre id="graph-test-debug" style="white-space:pre-wrap;background:#f8fafc;padding:10px;"></pre><div id="graph-preview" style="overflow:auto;border:1px solid #cbd5e1;min-height:260px;"></div><h4>Evidence table</h4><div id="graph-evidence"></div><h4>Generated graph context</h4><pre id="graph-context" style="white-space:pre-wrap;background:#f8fafc;padding:10px;"></pre>`)
 	b.WriteString(graphRAGPreviewScript())
 
-	b.WriteString(`<h3>Delete entire graph</h3><p>This deletes Graph RAG snapshots and provenance only. Traditional RAG documents remain.</p><form method="post" action="/admin/graph-rag/delete-all" onsubmit="return confirm('Delete the entire Graph RAG dataset?');">` + adminCSRFInput(r) + `<label>Type project name <strong>` + html.EscapeString(projectName) + `</strong><br><input name="project_name" required></label> <button type="submit" style="background:#b91c1c;color:white;">Delete entire graph</button></form>`)
+	b.WriteString(`<h3>Delete entire graph</h3><p>This deletes Graph RAG snapshots and provenance only. Traditional RAG documents remain.</p><form method="post" action="/admin/graph-rag/delete-all" onsubmit="return confirm('Delete the entire Graph RAG dataset?');">` + adminCSRFInput(r) + `<label>Type <strong>` + graphRAGDeleteConfirmation + `</strong><br><input name="delete_confirmation" autocomplete="off" required></label> <button type="submit" style="background:#b91c1c;color:white;">Delete entire graph</button></form>`)
 	b.WriteString(adminPageFooter())
 	adminWriteHTML(w, b.String())
 }
@@ -160,8 +164,8 @@ func adminGraphRAGDeleteAllHandler(w http.ResponseWriter, r *http.Request) {
 	if !adminRequireCSRF(w, r) {
 		return
 	}
-	if strings.TrimSpace(r.FormValue("project_name")) != graphRAGProjectName() {
-		graphRAGRedirect(w, r, "Project name confirmation did not match.")
+	if !graphRAGDeleteConfirmationMatches(r.FormValue("delete_confirmation")) {
+		graphRAGRedirect(w, r, `Type "confirm delete" to delete the graph.`)
 		return
 	}
 	if err := db.DeleteEntireGraphRAG(r.Context()); err != nil {
@@ -196,11 +200,12 @@ func adminGraphRAGTestHandler(w http.ResponseWriter, r *http.Request) {
 	adminWriteJSON(w, http.StatusOK, map[string]any{"ok": true, "result": result})
 }
 
-func graphRAGProjectName() string {
-	if config := survey.GlobalSurveyConfig(); config != nil && strings.TrimSpace(config.Project.Name) != "" {
-		return strings.TrimSpace(config.Project.Name)
-	}
-	return "WhatsApp"
+func graphRAGTableStart(label string, minWidth int) string {
+	return fmt.Sprintf(`<div class="graph-rag-table-scroll" role="region" aria-label="%s" tabindex="0" style="max-height:420px;overflow:auto;-webkit-overflow-scrolling:touch;"><table border="1" cellpadding="6" cellspacing="0" style="min-width:%dpx;width:100%%;border-collapse:collapse;">`, html.EscapeString(label), minWidth)
+}
+
+func graphRAGDeleteConfirmationMatches(value string) bool {
+	return strings.TrimSpace(value) == graphRAGDeleteConfirmation
 }
 
 func graphRAGRedirect(w http.ResponseWriter, r *http.Request, message string) {

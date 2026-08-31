@@ -34,3 +34,31 @@ func TestGraphRAGActionConfirmationEscapesJavaScriptString(t *testing.T) {
 		t.Fatalf("confirmation was not safely JSON/HTML encoded: %s", got)
 	}
 }
+
+func TestGraphRAGTableScrollerIsBoundedAndAccessible(t *testing.T) {
+	got := graphRAGTableStart("Document ingestion table", 1000)
+	for _, want := range []string{
+		`aria-label="Document ingestion table"`,
+		`tabindex="0"`,
+		`max-height:420px`,
+		`overflow:auto`,
+		`min-width:1000px`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("table scroller missing %q: %s", want, got)
+		}
+	}
+}
+
+func TestGraphRAGDeleteConfirmationRequiresLiteralPhrase(t *testing.T) {
+	for _, value := range []string{"confirm delete", " confirm delete "} {
+		if !graphRAGDeleteConfirmationMatches(value) {
+			t.Errorf("confirmation %q should match", value)
+		}
+	}
+	for _, value := range []string{"", "戒得有型", "WhatsApp", "Confirm delete", "confirm-delete"} {
+		if graphRAGDeleteConfirmationMatches(value) {
+			t.Errorf("confirmation %q should not match", value)
+		}
+	}
+}
